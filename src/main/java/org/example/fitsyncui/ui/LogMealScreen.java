@@ -1,0 +1,214 @@
+package org.example.fitsyncui.ui;
+
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.stage.Stage;
+
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
+
+public class LogMealScreen {
+
+    private final ObservableList<String> mealNames = FXCollections.observableArrayList(
+            "Oatmeal", "Chicken Salad", "Apple", "Grilled Fish"
+    );
+    private final Map<String, Double> mealCalories = new HashMap<>();
+    private final Map<String, String> mealTypes = new HashMap<>();
+
+    public LogMealScreen() {
+        // initialize default meals
+        mealCalories.put("Oatmeal", 250.0);
+        mealTypes.put("Oatmeal", "Breakfast");
+        mealCalories.put("Chicken Salad", 450.0);
+        mealTypes.put("Chicken Salad", "Lunch");
+        mealCalories.put("Apple", 95.0);
+        mealTypes.put("Apple", "Snack");
+        mealCalories.put("Grilled Fish", 600.0);
+        mealTypes.put("Grilled Fish", "Dinner");
+    }
+
+    public void start(Stage stage) {
+        boolean wasFullScreen = stage.isFullScreen();
+
+        Label title = new Label("Log a Meal");
+        title.setFont(Font.font("Arial", FontWeight.BOLD, 22));
+        title.setTextFill(Color.web("#2C3E50"));
+
+        ComboBox<String> mealDropdown = new ComboBox<>(mealNames);
+        mealDropdown.setPromptText("Select Meal");
+        styleInput(mealDropdown);
+
+        TextField customMealField = new TextField();
+        customMealField.setPromptText("Or enter custom meal name");
+        styleInput(customMealField);
+
+        TextField caloriesField = new TextField();
+        caloriesField.setPromptText("Calories");
+        styleInput(caloriesField);
+
+        ComboBox<String> mealTypeBox = new ComboBox<>(
+                FXCollections.observableArrayList("Breakfast", "Lunch", "Dinner", "Snack")
+        );
+        mealTypeBox.setPromptText("Meal Type");
+        styleInput(mealTypeBox);
+
+        DatePicker datePicker = new DatePicker(LocalDate.now());
+        styleInput(datePicker);
+
+        Button logButton = new Button("Log Meal");
+        Button updateButton = new Button("Update Meal");
+        Button deleteButton = new Button("Delete Meal");
+        Button backButton = new Button("Back");
+
+        for (Button b : new Button[]{logButton, updateButton, deleteButton, backButton}) {
+            b.setPrefSize(200, 35);
+        }
+        logButton.setStyle("-fx-background-color: #2ECC71; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
+        updateButton.setStyle("-fx-background-color: #F1C40F; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
+        deleteButton.setStyle("-fx-background-color: #E74C3C; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
+        backButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
+
+        Label messageLabel = new Label();
+        messageLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
+        messageLabel.setTextFill(Color.web("#E74C3C"));
+
+        // Populate fields when selecting an existing meal
+        mealDropdown.setOnAction(e -> {
+            String sel = mealDropdown.getValue();
+            if (sel != null) {
+                customMealField.setText(sel);
+                caloriesField.setText(String.valueOf(mealCalories.getOrDefault(sel, 0.0)));
+                mealTypeBox.setValue(mealTypes.getOrDefault(sel, ""));
+            }
+        });
+
+        logButton.setOnAction(e -> {
+            String name = customMealField.getText().trim();
+            String type = mealTypeBox.getValue();
+            String calText = caloriesField.getText().trim();
+            if (name.isEmpty() || type == null || calText.isEmpty()) {
+                messageLabel.setText("Please complete all fields.");
+                return;
+            }
+            double cal;
+            try {
+                cal = Double.parseDouble(calText);
+            } catch (NumberFormatException ex) {
+                messageLabel.setText("Invalid calories input.");
+                return;
+            }
+            // add to in-memory store
+            if (!mealNames.contains(name)) {
+                mealNames.add(name);
+            }
+            mealCalories.put(name, cal);
+            mealTypes.put(name, type);
+            messageLabel.setTextFill(Color.web("#27AE60"));
+            messageLabel.setText("Meal logged (mocked)!");
+            mealDropdown.setItems(mealNames);
+            mealDropdown.setValue(null);
+            customMealField.clear();
+            caloriesField.clear();
+            mealTypeBox.setValue(null);
+        });
+
+        updateButton.setOnAction(e -> {
+            String selected = mealDropdown.getValue();
+            String newName = customMealField.getText().trim();
+            String type = mealTypeBox.getValue();
+            String calText = caloriesField.getText().trim();
+            if (selected == null || newName.isEmpty() || type == null || calText.isEmpty()) {
+                messageLabel.setText("Select meal & fill new data.");
+                return;
+            }
+            double newCal;
+            try {
+                newCal = Double.parseDouble(calText);
+            } catch (NumberFormatException ex) {
+                messageLabel.setText("Invalid calories input.");
+                return;
+            }
+            // update in-memory
+            mealNames.remove(selected);
+            mealNames.add(newName);
+            mealCalories.remove(selected);
+            mealTypes.remove(selected);
+            mealCalories.put(newName, newCal);
+            mealTypes.put(newName, type);
+
+            messageLabel.setTextFill(Color.web("#27AE60"));
+            messageLabel.setText("Meal updated (mocked).");
+            mealDropdown.setItems(mealNames);
+            mealDropdown.setValue(null);
+        });
+
+        deleteButton.setOnAction(e -> {
+            String selected = mealDropdown.getValue();
+            if (selected == null) {
+                messageLabel.setText("Select a meal to delete.");
+                return;
+            }
+            mealNames.remove(selected);
+            mealCalories.remove(selected);
+            mealTypes.remove(selected);
+            messageLabel.setTextFill(Color.web("#27AE60"));
+            messageLabel.setText("Meal deleted (mocked).");
+            mealDropdown.setItems(mealNames);
+            mealDropdown.setValue(null);
+        });
+
+        backButton.setOnAction(e -> {
+            // just close or go back; mock implementation
+            stage.setFullScreen(wasFullScreen);
+        });
+
+        VBox form = new VBox(12,
+                title,
+                mealDropdown,
+                customMealField,
+                caloriesField,
+                mealTypeBox,
+                datePicker,
+                logButton,
+                updateButton,
+                deleteButton,
+                backButton,
+                messageLabel
+        );
+        form.setAlignment(Pos.CENTER);
+        form.setMaxWidth(400);
+
+        VBox layout = new VBox(form);
+        layout.setAlignment(Pos.CENTER);
+        layout.setStyle("-fx-background-color: #FDFEFE;");
+        layout.setPadding(new Insets(25));
+        layout.prefWidthProperty().bind(stage.widthProperty());
+        layout.prefHeightProperty().bind(stage.heightProperty());
+
+        Scene scene = new Scene(layout);
+        stage.setTitle("Log Meal");
+        stage.setScene(scene);
+        stage.setFullScreen(wasFullScreen);
+        stage.show();
+    }
+
+    private void styleInput(Control input) {
+        input.setPrefHeight(40);
+        input.setMaxWidth(300);
+        input.setStyle(
+                "-fx-background-color: #ECF0F1; " +
+                        "-fx-border-color: #BDC3C7; " +
+                        "-fx-border-radius: 5; " +
+                        "-fx-background-radius: 5;"
+        );
+    }
+}
