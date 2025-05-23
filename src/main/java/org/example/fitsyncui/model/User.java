@@ -1,14 +1,17 @@
 package org.example.fitsyncui.model;
 
 public class User {
-    private int id;
-    private String name;
-    private String email;
-    private String password;
-    private int age;
-    private String gender; // 'M' or 'F'
-    private double weight;
-    private double height;
+    public int id;
+    public String name;
+    public String email;
+    public String password;
+    public int age;
+    public String gender; // 'M' or 'F'
+    public double weight;
+    public double height;
+
+    // Default constructor for Jackson
+    public User() {}
 
     // Constructor without ID (for new users)
     public User(String name, String email, String password, int age, String gender, double weight, double height) {

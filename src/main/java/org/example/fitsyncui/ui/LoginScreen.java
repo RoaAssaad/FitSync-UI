@@ -12,12 +12,13 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
-import org.example.fitsyncui.model.User;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import org.example.fitsyncui.model.User;
+
 
 import java.util.Objects;
 
@@ -105,10 +106,11 @@ public class LoginScreen {
             try {
                 // Build URL
                 String urlStr = String.format(
-                        "http://localhost:8080/login?email=%s&password=%s",
+                        "http://localhost:8080/api/users/login?email=%s&password=%s",
                         URLEncoder.encode(email, StandardCharsets.UTF_8),
                         URLEncoder.encode(pwd, StandardCharsets.UTF_8)
                 );
+
                 HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/json");
