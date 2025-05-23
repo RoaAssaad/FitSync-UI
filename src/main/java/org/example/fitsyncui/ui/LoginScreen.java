@@ -1,5 +1,6 @@
 package org.example.fitsyncui.ui;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -11,6 +12,11 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import java.util.Objects;
 
@@ -81,6 +87,7 @@ public class LoginScreen {
         );
 
         Label messageLabel = new Label();
+        messageLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         messageLabel.setTextFill(Color.web("#E74C3C"));
 
         loginButton.setOnAction(e -> {
@@ -89,12 +96,38 @@ public class LoginScreen {
                     ? visiblePasswordField.getText().trim()
                     : passwordField.getText().trim();
 
-            // Mock login check
-            if (email.equalsIgnoreCase("user@test.com") && pwd.equals("1234")) {
-                new DashboardScreen().start(stage);
-                stage.setFullScreen(wasFullScreen);
-            } else {
-                messageLabel.setText("Invalid email or password.");
+            if (email.isEmpty() || pwd.isEmpty()) {
+                messageLabel.setText("Please enter email and password.");
+                return;
+            }
+
+            try {
+                // Build URL
+                String urlStr = String.format(
+                        "http://localhost:8080/login?email=%s&password=%s",
+                        URLEncoder.encode(email, StandardCharsets.UTF_8),
+                        URLEncoder.encode(pwd, StandardCharsets.UTF_8)
+                );
+                HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/json");
+
+                if (conn.getResponseCode() == 200) {
+                    // Parse JSON into User via Jackson
+                    ObjectMapper mapper = new ObjectMapper();
+                    User user = mapper.readValue(conn.getInputStream(), User.class);
+
+                    new DashboardScreen(user).start(stage);
+                    stage.setFullScreen(wasFullScreen);
+
+                } else {
+                    messageLabel.setText("Invalid email or password.");
+                }
+                conn.disconnect();
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                messageLabel.setText("Login failed. Try again.");
             }
         });
 

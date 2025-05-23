@@ -13,7 +13,10 @@ import java.util.Random;
 
 public class WeeklyProgressScreen {
 
-    public WeeklyProgressScreen() {
+    private final User user;
+
+    public WeeklyProgressScreen(User user) {
+        this.user = user;
     }
 
     public void start(Stage stage) {
@@ -60,7 +63,7 @@ public class WeeklyProgressScreen {
                         "-fx-background-radius: 8;"
         );
         backButton.setOnAction(e -> {
-            new DashboardScreen().start(stage);
+            new DashboardScreen(user).start(stage);
             stage.setFullScreen(wasFullScreen);
         });
 

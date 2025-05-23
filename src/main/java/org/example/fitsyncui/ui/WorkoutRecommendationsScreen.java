@@ -15,7 +15,10 @@ import javafx.stage.Stage;
 
 public class WorkoutRecommendationsScreen {
 
-    public WorkoutRecommendationsScreen() {
+    private final User user;
+
+    public WorkoutRecommendationsScreen(User user) {
+        this.user = user;
     }
 
     public void start(Stage stage) {
@@ -115,7 +118,7 @@ public class WorkoutRecommendationsScreen {
         });
 
         backButton.setOnAction(e -> {
-            new DashboardScreen().start(stage);
+            new DashboardScreen(user).start(stage);
             stage.setFullScreen(wasFullScreen);
         });
 

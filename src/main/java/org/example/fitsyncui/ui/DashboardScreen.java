@@ -7,14 +7,15 @@ import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
 public class DashboardScreen {
+    private final User user;
 
-    public DashboardScreen() {
+    public DashboardScreen(User user) {
+        this.user = user;
     }
 
     public void start(Stage stage) {
@@ -81,16 +82,16 @@ public class DashboardScreen {
         VBox workoutsBox = new VBox(12,
                 workoutsImage,
                 createButton("Log Workout", () -> new LogWorkoutScreen().start(stage)),
-                createButton("Workout Recommendations", () -> new WorkoutRecommendationsScreen().start(stage))
+                createButton("Workout Recommendations", () -> new WorkoutRecommendationsScreen(user).start(stage))
         );
 
         VBox progressBox = new VBox(12,
                 progressImage,
-                createButton("View Daily Summary", () -> new DailySummaryScreen().start(stage)),
+                createButton("View Daily Summary", () -> new DailySummaryScreen(user).start(stage)),
                 createButton("Today's Summary", () -> new TodayDashboardScreen().start(stage)),
                 createButton("Log Weight", () -> new LogWeightScreen().start(stage)),
-                createButton("View Weight Chart", () -> new WeightChartScreen().start(stage)),
-                createButton("Weekly Progress", () -> new WeeklyProgressScreen().start(stage)),
+                createButton("View Weight Chart", () -> new WeightChartScreen(user).start(stage)),
+                createButton("Weekly Progress", () -> new WeeklyProgressScreen(user).start(stage)),
                 createButton("Set Daily Goals", () -> new GoalScreen().start(stage)),
                 createButton("View/Edit Profile", () -> new UserProfileScreen().start(stage))
         );
