@@ -13,5 +13,8 @@ module org.example.fitsyncui {
     requires com.fasterxml.jackson.databind;
 
     opens org.example.fitsyncui to javafx.fxml;
+    opens org.example.fitsyncui.model to com.fasterxml.jackson.databind;
+
     exports org.example.fitsyncui;
+    exports org.example.fitsyncui.model;
 }
