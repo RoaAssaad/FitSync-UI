@@ -1,4 +1,4 @@
-package org.example.fitsyncui.ui;
+package org.example.fitsyncui.model;
 
 public class User {
     private int id;

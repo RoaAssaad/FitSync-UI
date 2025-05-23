@@ -7,6 +7,7 @@ import javafx.scene.chart.*;
 import javafx.scene.control.Button;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import org.example.fitsyncui.model.User;
 
 import java.time.LocalDate;
 import java.util.Random;

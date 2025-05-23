@@ -1,5 +1,8 @@
 package org.example.fitsyncui.ui;
 
+import org.example.fitsyncui.model.User;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -12,16 +15,52 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
 public class LogWorkoutScreen {
-    private final ObservableList<String> workoutNames = FXCollections.observableArrayList(
-            "Running", "Cycling", "Yoga"
-    );
+    private final User user;
+    private final ObservableList<String> workoutNames = FXCollections.observableArrayList();
+
+    public LogWorkoutScreen(User user) {
+        this.user = user;
+    }
 
     public void start(Stage stage) {
-        boolean wasFullScreen = stage.isFullScreen(); // remember fullscreen
+        boolean wasFullScreen = stage.isFullScreen();
 
+        // 1) FETCH workouts for this user
+        try {
+            URL url = new URL("http://localhost:8080/api/workouts/user/" + user.getId());
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+
+            if (conn.getResponseCode() == 200) {
+                InputStream in = conn.getInputStream();
+                ObjectMapper mapper = new ObjectMapper();
+                // assumes each workout JSON has at least a "name" field
+                List<Map<String, Object>> list = mapper.readValue(
+                        in, new TypeReference<>() {
+                        }
+                );
+                for (Map<String, Object> w : list) {
+                    String name = w.get("name").toString();
+                    workoutNames.add(name);
+                }
+            } else {
+                System.err.println("Failed to fetch workouts: " + conn.getResponseCode());
+            }
+            conn.disconnect();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        // 2) BUILD UI
         Label title = new Label("Log a Workout");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 22));
         title.setTextFill(Color.web("#2C3E50"));
@@ -55,33 +94,32 @@ public class LogWorkoutScreen {
         messageLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         messageLabel.setTextFill(Color.web("#E74C3C"));
 
-        // When selecting from dropdown, populate fields
+        // when selecting from dropdown, populate name field
         workoutDropdown.setOnAction(e -> {
             String sel = workoutDropdown.getValue();
             if (sel != null) {
                 workoutNameField.setText(sel);
-                // no real DB; just clear calories field
                 caloriesField.clear();
             }
         });
 
+        // your existing mock handlers:
         logButton.setOnAction(e -> {
             String name = workoutNameField.getText().trim();
-            String calText = caloriesField.getText().trim();
+            String cal = caloriesField.getText().trim();
             LocalDate date = datePicker.getValue();
-
-            if (name.isEmpty() || calText.isEmpty() || date == null) {
+            if (name.isEmpty() || cal.isEmpty() || date == null) {
                 messageLabel.setText("Fill in all fields.");
                 return;
             }
             try {
-                Integer.parseInt(calText);
+                Integer.parseInt(cal);
                 if (!workoutNames.contains(name)) {
                     workoutNames.add(name);
+                    workoutDropdown.setItems(workoutNames);
                 }
                 messageLabel.setTextFill(Color.web("#27AE60"));
                 messageLabel.setText("Workout logged (mocked)!");
-                workoutDropdown.setItems(workoutNames);
                 workoutDropdown.setValue(null);
                 workoutNameField.clear();
                 caloriesField.clear();
@@ -94,7 +132,6 @@ public class LogWorkoutScreen {
             String selected = workoutDropdown.getValue();
             String newName = workoutNameField.getText().trim();
             String newCal = caloriesField.getText().trim();
-
             if (selected == null || newName.isEmpty() || newCal.isEmpty()) {
                 messageLabel.setText("Select workout and enter new values.");
                 return;
@@ -103,9 +140,9 @@ public class LogWorkoutScreen {
                 Integer.parseInt(newCal);
                 workoutNames.remove(selected);
                 workoutNames.add(newName);
+                workoutDropdown.setItems(workoutNames);
                 messageLabel.setTextFill(Color.web("#27AE60"));
                 messageLabel.setText("Workout updated (mocked).");
-                workoutDropdown.setItems(workoutNames);
                 workoutDropdown.setValue(null);
                 workoutNameField.clear();
                 caloriesField.clear();
@@ -121,16 +158,16 @@ public class LogWorkoutScreen {
                 return;
             }
             workoutNames.remove(selected);
+            workoutDropdown.setItems(workoutNames);
             messageLabel.setTextFill(Color.web("#27AE60"));
             messageLabel.setText("Workout deleted (mocked).");
-            workoutDropdown.setItems(workoutNames);
             workoutDropdown.setValue(null);
             workoutNameField.clear();
             caloriesField.clear();
         });
 
         backButton.setOnAction(e -> {
-            // mock back: just restore fullscreen state
+            new DashboardScreen(user).start(stage);
             stage.setFullScreen(wasFullScreen);
         });
 

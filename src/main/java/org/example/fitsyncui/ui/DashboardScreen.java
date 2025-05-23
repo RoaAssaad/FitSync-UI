@@ -10,6 +10,7 @@ import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+import org.example.fitsyncui.model.User;
 
 public class DashboardScreen {
     private final User user;
@@ -81,7 +82,7 @@ public class DashboardScreen {
 
         VBox workoutsBox = new VBox(12,
                 workoutsImage,
-                createButton("Log Workout", () -> new LogWorkoutScreen().start(stage)),
+                createButton("Log Workout", () -> new LogWorkoutScreen(user).start(stage)),
                 createButton("Workout Recommendations", () -> new WorkoutRecommendationsScreen(user).start(stage))
         );
 
@@ -93,7 +94,7 @@ public class DashboardScreen {
                 createButton("View Weight Chart", () -> new WeightChartScreen(user).start(stage)),
                 createButton("Weekly Progress", () -> new WeeklyProgressScreen(user).start(stage)),
                 createButton("Set Daily Goals", () -> new GoalScreen().start(stage)),
-                createButton("View/Edit Profile", () -> new UserProfileScreen().start(stage))
+                createButton("View/Edit Profile", () -> new UserProfileScreen(user).start(stage))
         );
 
         for (VBox box : new VBox[]{mealsBox, workoutsBox, progressBox}) {

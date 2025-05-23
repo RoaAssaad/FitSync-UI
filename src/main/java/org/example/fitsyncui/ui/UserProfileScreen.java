@@ -1,5 +1,8 @@
 package org.example.fitsyncui.ui;
 
+import org.example.fitsyncui.model.User;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -10,19 +13,29 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+
 public class UserProfileScreen {
+    private final User user;
+
+    public UserProfileScreen(User user) {
+        this.user = user;
+    }
 
     public void start(Stage stage) {
-        boolean wasFullScreen = stage.isFullScreen(); // preserve fullscreen
+        boolean wasFullScreen = stage.isFullScreen();
 
         Label title = new Label("Your Profile");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 22));
         title.setTextFill(Color.web("#2C3E50"));
 
-        TextField nameField = new TextField("John Doe");
+        TextField nameField = new TextField(user.getName());
         styleField(nameField);
 
-        TextField emailField = new TextField("johndoe@example.com");
+        TextField emailField = new TextField(user.getEmail());
         emailField.setDisable(true);
         emailField.setPrefHeight(40);
         emailField.setMaxWidth(300);
@@ -36,24 +49,34 @@ public class UserProfileScreen {
         passwordField.setPromptText("New Password (leave blank to keep current)");
         styleField(passwordField);
 
-        TextField ageField = new TextField("28");
+        TextField ageField = new TextField(String.valueOf(user.getAge()));
         styleField(ageField);
 
-        ComboBox<String> genderBox = new ComboBox<>();
-        genderBox.getItems().addAll("M", "F");
-        genderBox.setValue("M");
+        ComboBox<String> genderBox = new ComboBox<>(
+                FXCollections.observableArrayList("M", "F")
+        );
+        genderBox.setValue(user.getGender());
         styleField(genderBox);
 
-        TextField weightField = new TextField("75.5");
+        TextField weightField = new TextField(String.valueOf(user.getWeight()));
         styleField(weightField);
 
-        TextField heightField = new TextField("180");
+        TextField heightField = new TextField(String.valueOf(user.getHeight()));
         styleField(heightField);
 
         Button saveButton = new Button("Save Changes");
         saveButton.setPrefSize(200, 35);
         saveButton.setStyle(
                 "-fx-background-color: #2ECC71; " +
+                        "-fx-text-fill: white; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-background-radius: 8;"
+        );
+
+        Button deleteButton = new Button("Delete Account");
+        deleteButton.setPrefSize(200, 35);
+        deleteButton.setStyle(
+                "-fx-background-color: #E74C3C; " +
                         "-fx-text-fill: white; " +
                         "-fx-font-weight: bold; " +
                         "-fx-background-radius: 8;"
@@ -72,9 +95,9 @@ public class UserProfileScreen {
         messageLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         messageLabel.setTextFill(Color.web("#E74C3C"));
 
+        // UPDATE (PUT /api/users/{id})
         saveButton.setOnAction(e -> {
             try {
-                // Validate fields
                 String name = nameField.getText().trim();
                 String pwd = passwordField.getText().trim();
                 int age = Integer.parseInt(ageField.getText().trim());
@@ -82,19 +105,75 @@ public class UserProfileScreen {
                 double weight = Double.parseDouble(weightField.getText().trim());
                 double height = Double.parseDouble(heightField.getText().trim());
 
-                if (name.isEmpty() || gender == null) throw new IllegalArgumentException();
+                if (name.isEmpty() || gender == null) {
+                    throw new IllegalArgumentException();
+                }
 
-                // Mock success
-                messageLabel.setText("Profile updated successfully! (mock)");
-                messageLabel.setTextFill(Color.web("#27AE60"));
+                // build updated user
+                User updated = new User(
+                        user.getId(),
+                        name,
+                        user.getEmail(),
+                        pwd.isEmpty() ? user.getPassword() : pwd,
+                        age,
+                        gender,
+                        weight,
+                        height
+                );
+
+                // send PUT
+                URL url = new URL("http://localhost:8080/api/users/" + user.getId());
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("PUT");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+
+                ObjectMapper mapper = new ObjectMapper();
+                String json = mapper.writeValueAsString(updated);
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+
+                int code = conn.getResponseCode();
+                if (code == 200) {
+                    messageLabel.setTextFill(Color.web("#27AE60"));
+                    messageLabel.setText("Profile updated successfully!");
+                } else {
+                    messageLabel.setText("Update failed. (" + code + ")");
+                }
+                conn.disconnect();
             } catch (Exception ex) {
+                ex.printStackTrace();
                 messageLabel.setText("Please enter valid input.");
-                messageLabel.setTextFill(Color.web("#E74C3C"));
+            }
+        });
+
+        // DELETE (DELETE /api/users/{id})
+        deleteButton.setOnAction(e -> {
+            try {
+                URL url = new URL("http://localhost:8080/api/users/" + user.getId());
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("DELETE");
+
+                int code = conn.getResponseCode();
+                conn.disconnect();
+
+                if (code == 200 || code == 204) {
+                    // back to login screen
+                    new LoginScreen().start(stage);
+                    stage.setFullScreen(false);
+                } else {
+                    messageLabel.setText("Delete failed. (" + code + ")");
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                messageLabel.setText("Delete failed.");
             }
         });
 
         backButton.setOnAction(e -> {
-            // Mock back navigation
+            new DashboardScreen(user).start(stage);
             stage.setFullScreen(wasFullScreen);
         });
 
@@ -108,16 +187,17 @@ public class UserProfileScreen {
                 weightField,
                 heightField,
                 saveButton,
+                deleteButton,
                 backButton,
                 messageLabel
         );
         form.setAlignment(Pos.CENTER);
         form.setMaxWidth(400);
+        form.setPadding(new Insets(25));
 
         VBox layout = new VBox(form);
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-background-color: #FDFEFE;");
-        layout.setPadding(new Insets(25));
         layout.prefWidthProperty().bind(stage.widthProperty());
         layout.prefHeightProperty().bind(stage.heightProperty());
 
@@ -129,7 +209,8 @@ public class UserProfileScreen {
     }
 
     private void styleField(Control c) {
-        c.setPrefSize(40, 300);
+        c.setPrefHeight(40);
+        c.setMaxWidth(300);
         c.setStyle(
                 "-fx-background-color: #ECF0F1; " +
                         "-fx-border-color: #BDC3C7; " +
