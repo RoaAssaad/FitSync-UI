@@ -1,6 +1,5 @@
 package org.example.fitsyncui.ui;
 
-import org.example.fitsyncui.model.User;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Insets;
@@ -10,6 +9,7 @@ import javafx.scene.chart.*;
 import javafx.scene.control.Button;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import org.example.fitsyncui.model.User;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -39,44 +39,40 @@ public class WeeklyProgressScreen {
         barChart.setCategoryGap(10);
         barChart.setBarGap(4);
         barChart.setStyle("-fx-background-color: #FDFEFE;");
+
         XYChart.Series<String, Number> consumedSeries = new XYChart.Series<>();
         consumedSeries.setName("Calories Consumed");
+
         XYChart.Series<String, Number> burnedSeries = new XYChart.Series<>();
         burnedSeries.setName("Calories Burned");
 
-        ObjectMapper mapper = new ObjectMapper();
         try {
-            URL url = new URL("http://localhost:8080/api/daily-summary/user/" + user.getId());
-            HttpURLConnection conn = (HttpURLConnection)url.openConnection();
+            URL url = new URL("http://localhost:8080/api/v1/weekly-progress?userId=" + user.getId());
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept","application/json");
+            conn.setRequestProperty("Accept", "application/json");
+
             if (conn.getResponseCode() == 200) {
                 InputStream in = conn.getInputStream();
-                List<Map<String,Object>> list = mapper.readValue(in, new TypeReference<>() {});
-                LocalDate today = LocalDate.now();
-                LocalDate weekAgo = today.minusDays(6);
-                for (Map<String,Object> m : list) {
-                    LocalDate d = LocalDate.parse(m.get("date").toString().substring(0,10));
-                    if (!d.isBefore(weekAgo) && !d.isAfter(today)) {
-                        consumedSeries.getData().add(new XYChart.Data<>(
-                                d.toString(),
-                                ((Number)m.get("caloriesConsumed")).doubleValue()
-                        ));
-                        burnedSeries.getData().add(new XYChart.Data<>(
-                                d.toString(),
-                                ((Number)m.get("caloriesBurned")).doubleValue()
-                        ));
-                    }
+                List<Map<String, Object>> progressList = new ObjectMapper().readValue(in, new TypeReference<>() {});
+                for (Map<String, Object> entry : progressList) {
+                    String date = entry.get("date").toString();
+                    double calIn = ((Number) entry.get("caloriesConsumed")).doubleValue();
+                    double calOut = ((Number) entry.get("caloriesBurned")).doubleValue();
+
+                    consumedSeries.getData().add(new XYChart.Data<>(date, calIn));
+                    burnedSeries.getData().add(new XYChart.Data<>(date, calOut));
                 }
             }
             conn.disconnect();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         barChart.getData().addAll(consumedSeries, burnedSeries);
 
         Button backButton = new Button("Back");
-        backButton.setPrefSize(160,35);
+        backButton.setPrefSize(160, 35);
         backButton.setStyle(
                 "-fx-background-color: #3498DB; " +
                         "-fx-text-fill: white; " +
