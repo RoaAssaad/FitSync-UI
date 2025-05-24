@@ -1,5 +1,8 @@
 package org.example.fitsyncui.ui;
 
+import org.example.fitsyncui.model.User;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -7,13 +10,15 @@ import javafx.scene.chart.*;
 import javafx.scene.control.Button;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import org.example.fitsyncui.model.User;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.time.LocalDate;
-import java.util.Random;
+import java.util.List;
+import java.util.Map;
 
 public class WeeklyProgressScreen {
-
     private final User user;
 
     public WeeklyProgressScreen(User user) {
@@ -21,7 +26,7 @@ public class WeeklyProgressScreen {
     }
 
     public void start(Stage stage) {
-        boolean wasFullScreen = stage.isFullScreen(); // remember fullscreen state
+        boolean wasFullScreen = stage.isFullScreen();
 
         CategoryAxis xAxis = new CategoryAxis();
         NumberAxis yAxis = new NumberAxis();
@@ -34,29 +39,44 @@ public class WeeklyProgressScreen {
         barChart.setCategoryGap(10);
         barChart.setBarGap(4);
         barChart.setStyle("-fx-background-color: #FDFEFE;");
-        barChart.setMaxWidth(600);
-
         XYChart.Series<String, Number> consumedSeries = new XYChart.Series<>();
         consumedSeries.setName("Calories Consumed");
         XYChart.Series<String, Number> burnedSeries = new XYChart.Series<>();
         burnedSeries.setName("Calories Burned");
 
-        LocalDate today = LocalDate.now();
-        Random rnd = new Random();
-        // Mock data for last 7 days
-        for (int i = 6; i >= 0; i--) {
-            LocalDate date = today.minusDays(i);
-            String dateStr = date.toString();
-            int in = 1800 + rnd.nextInt(401); // 1800–2200
-            int out = 300 + rnd.nextInt(301); // 300–600
-            consumedSeries.getData().add(new XYChart.Data<>(dateStr, in));
-            burnedSeries.getData().add(new XYChart.Data<>(dateStr, out));
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            URL url = new URL("http://localhost:8080/api/daily-summary/user/" + user.getId());
+            HttpURLConnection conn = (HttpURLConnection)url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept","application/json");
+            if (conn.getResponseCode() == 200) {
+                InputStream in = conn.getInputStream();
+                List<Map<String,Object>> list = mapper.readValue(in, new TypeReference<>() {});
+                LocalDate today = LocalDate.now();
+                LocalDate weekAgo = today.minusDays(6);
+                for (Map<String,Object> m : list) {
+                    LocalDate d = LocalDate.parse(m.get("date").toString().substring(0,10));
+                    if (!d.isBefore(weekAgo) && !d.isAfter(today)) {
+                        consumedSeries.getData().add(new XYChart.Data<>(
+                                d.toString(),
+                                ((Number)m.get("caloriesConsumed")).doubleValue()
+                        ));
+                        burnedSeries.getData().add(new XYChart.Data<>(
+                                d.toString(),
+                                ((Number)m.get("caloriesBurned")).doubleValue()
+                        ));
+                    }
+                }
+            }
+            conn.disconnect();
+        } catch (Exception ignored) {
         }
 
         barChart.getData().addAll(consumedSeries, burnedSeries);
 
         Button backButton = new Button("Back");
-        backButton.setPrefSize(160, 35);
+        backButton.setPrefSize(160,35);
         backButton.setStyle(
                 "-fx-background-color: #3498DB; " +
                         "-fx-text-fill: white; " +
@@ -75,9 +95,8 @@ public class WeeklyProgressScreen {
         layout.prefWidthProperty().bind(stage.widthProperty());
         layout.prefHeightProperty().bind(stage.heightProperty());
 
-        Scene scene = new Scene(layout);
+        stage.setScene(new Scene(layout));
         stage.setTitle("Weekly Progress");
-        stage.setScene(scene);
         stage.setFullScreen(wasFullScreen);
         stage.show();
     }

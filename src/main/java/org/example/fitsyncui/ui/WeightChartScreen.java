@@ -1,5 +1,7 @@
 package org.example.fitsyncui.ui;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -9,8 +11,11 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.example.fitsyncui.model.User;
 
-import java.time.LocalDate;
-import java.util.Random;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.List;
+import java.util.Map;
 
 public class WeightChartScreen {
     private final User user;
@@ -19,17 +24,14 @@ public class WeightChartScreen {
         this.user = user;
     }
 
-
     public void start(Stage stage) {
-        boolean wasFullScreen = stage.isFullScreen(); // save fullscreen state
+        boolean wasFullScreen = stage.isFullScreen();
 
-        // Axes
         CategoryAxis xAxis = new CategoryAxis();
         NumberAxis yAxis = new NumberAxis();
         xAxis.setLabel("Date");
         yAxis.setLabel("Weight (kg)");
 
-        // Line chart setup
         LineChart<String, Number> chart = new LineChart<>(xAxis, yAxis);
         chart.setTitle("Weight Progress Over Time");
         chart.setLegendVisible(false);
@@ -37,19 +39,32 @@ public class WeightChartScreen {
         chart.setStyle("-fx-background-color: #FDFEFE;");
         chart.setMaxWidth(600);
 
-        // Series with mocked data
         XYChart.Series<String, Number> series = new XYChart.Series<>();
-        LocalDate today = LocalDate.now();
-        Random rnd = new Random();
-        double baseWeight = 75.0;
-        for (int i = 9; i >= 0; i--) {
-            LocalDate d = today.minusDays(i);
-            double w = baseWeight + Math.sin(i) * 0.8;  // mock fluctuation
-            series.getData().add(new XYChart.Data<>(d.toString(), w));
+
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            URL url = new URL("http://localhost:8080/api/weights/user/" + user.getId());
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            if (conn.getResponseCode() == 200) {
+                InputStream in = conn.getInputStream();
+                List<Map<String, Object>> list = mapper.readValue(in, new TypeReference<>() {
+                });
+                list.sort((a, b) -> a.get("date").toString().compareTo(b.get("date").toString()));
+                for (Map<String, Object> m : list) {
+                    String date = m.get("date").toString().substring(0, 10);
+                    double w = ((Number) m.get("weight")).doubleValue();
+                    series.getData().add(new XYChart.Data<>(date, w));
+                }
+            }
+            conn.disconnect();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+
         chart.getData().add(series);
 
-        // Back button
         Button backButton = new Button("Back");
         backButton.setPrefSize(160, 35);
         backButton.setStyle(
@@ -63,7 +78,6 @@ public class WeightChartScreen {
             stage.setFullScreen(wasFullScreen);
         });
 
-        // Layout
         VBox layout = new VBox(20, chart, backButton);
         layout.setPadding(new Insets(25));
         layout.setAlignment(Pos.CENTER);
@@ -71,9 +85,8 @@ public class WeightChartScreen {
         layout.prefWidthProperty().bind(stage.widthProperty());
         layout.prefHeightProperty().bind(stage.heightProperty());
 
-        // Scene & show
-        stage.setTitle("Weight Chart");
         stage.setScene(new Scene(layout));
+        stage.setTitle("Weight Chart");
         stage.setFullScreen(wasFullScreen);
         stage.show();
     }
