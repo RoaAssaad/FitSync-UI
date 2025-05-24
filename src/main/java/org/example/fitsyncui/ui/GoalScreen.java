@@ -1,5 +1,6 @@
 package org.example.fitsyncui.ui;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -9,12 +10,24 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+import org.example.fitsyncui.model.User;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 public class GoalScreen {
+    private final User user;
 
-    public void start(Stage stage) {
-        boolean wasFullScreen = stage.isFullScreen(); // keep fullscreen state
+    public GoalScreen(User user) {
+        this.user = user;
+    }
 
+    public void start(Stage stage) throws Exception {
+        boolean wasFullScreen = stage.isFullScreen();
         Label title = new Label("Set Daily Calorie Goals");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 22));
         title.setTextFill(Color.web("#2C3E50"));
@@ -28,72 +41,89 @@ public class GoalScreen {
         styleInput(burnGoalField);
 
         Button saveButton = new Button("Save Goals");
-        saveButton.setPrefWidth(160);
-        saveButton.setPrefHeight(35);
+        saveButton.setPrefSize(160, 35);
         saveButton.setStyle("-fx-background-color: #2ECC71; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
 
         Button backButton = new Button("Back");
-        backButton.setPrefWidth(160);
-        backButton.setPrefHeight(35);
+        backButton.setPrefSize(160, 35);
         backButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
 
         Label status = new Label();
         status.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         status.setTextFill(Color.web("#E74C3C"));
 
+        // GET existing goals
+        {
+            URL url = new URL("http://localhost:8080/api/goals/user/" + user.getId());
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            if (conn.getResponseCode() == 200) {
+                InputStream in = conn.getInputStream();
+                Map<String, Object> m = new ObjectMapper().readValue(in, Map.class);
+                intakeGoalField.setText(m.get("caloriesInGoal").toString());
+                burnGoalField.setText(m.get("caloriesBurnGoal").toString());
+            }
+            conn.disconnect();
+        }
+
         saveButton.setOnAction(e -> {
             try {
-                double intakeGoal = Double.parseDouble(intakeGoalField.getText().trim());
+                double inGoal = Double.parseDouble(intakeGoalField.getText().trim());
                 double burnGoal = Double.parseDouble(burnGoalField.getText().trim());
-
-                // Mock saving logic:
-                status.setTextFill(Color.web("#27AE60"));
-                status.setText("Goals saved! (mocked)");
-
-            } catch (NumberFormatException ex) {
-                status.setTextFill(Color.web("#E74C3C"));
+                URL url = new URL("http://localhost:8080/api/goals/user/" + user.getId());
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("PUT");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                String body = new ObjectMapper().writeValueAsString(Map.of(
+                        "caloriesInGoal", inGoal,
+                        "caloriesBurnGoal", burnGoal
+                ));
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body.getBytes(StandardCharsets.UTF_8));
+                }
+                if (conn.getResponseCode() == 200) {
+                    status.setText("Goals saved!");
+                    status.setTextFill(Color.web("#27AE60"));
+                } else {
+                    status.setText("Save failed (" + conn.getResponseCode() + ")");
+                }
+                conn.disconnect();
+            } catch (Exception ex) {
                 status.setText("Please enter valid numbers.");
+                status.setTextFill(Color.web("#E74C3C"));
             }
         });
 
         backButton.setOnAction(e -> {
-            // Go back to dashboard (mocked)
+            new DashboardScreen(user).start(stage);
             stage.setFullScreen(wasFullScreen);
         });
 
         VBox form = new VBox(12,
-                title,
-                intakeGoalField,
-                burnGoalField,
-                saveButton,
-                backButton,
-                status
+                title, intakeGoalField, burnGoalField,
+                saveButton, backButton, status
         );
         form.setAlignment(Pos.CENTER);
         form.setMaxWidth(400);
+        form.setPadding(new Insets(25));
 
-        VBox layout = new VBox(form);
-        layout.setAlignment(Pos.CENTER);
-        layout.setStyle("-fx-background-color: #FDFEFE;");
-        layout.setPadding(new Insets(25));
-        layout.prefWidthProperty().bind(stage.widthProperty());
-        layout.prefHeightProperty().bind(stage.heightProperty());
+        VBox root = new VBox(form);
+        root.setAlignment(Pos.CENTER);
+        root.setStyle("-fx-background-color: #FDFEFE;");
+        root.prefWidthProperty().bind(stage.widthProperty());
+        root.prefHeightProperty().bind(stage.heightProperty());
 
-        Scene scene = new Scene(layout);
+        stage.setScene(new Scene(root));
         stage.setTitle("Set Daily Goals");
-        stage.setScene(scene);
         stage.setFullScreen(wasFullScreen);
         stage.show();
     }
 
-    private void styleInput(Control input) {
-        input.setPrefHeight(40);
-        input.setMaxWidth(300);
-        input.setStyle(
-                "-fx-background-color: #ECF0F1; " +
-                        "-fx-border-color: #BDC3C7; " +
-                        "-fx-border-radius: 5; " +
-                        "-fx-background-radius: 5;"
-        );
+    private void styleInput(Control c) {
+        c.setPrefHeight(40);
+        c.setMaxWidth(300);
+        c.setStyle("-fx-background-color:#ECF0F1;-fx-border-color:#BDC3C7;-fx-border-radius:5;-fx-background-radius:5;");
     }
 }

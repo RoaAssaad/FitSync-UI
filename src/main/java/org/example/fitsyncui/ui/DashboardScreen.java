@@ -76,8 +76,8 @@ public class DashboardScreen {
         // Buttons
         VBox mealsBox = new VBox(12,
                 mealsImage,
-                createButton("Log Meal", () -> new LogMealScreen().start(stage)),
-                createButton("View Logged Meals", () -> new ViewMealsScreen().start(stage))
+                createButton("Log Meal", () -> new LogMealScreen(user).start(stage)),
+                createButton("View Logged Meals", () -> new ViewMealsScreen(user).start(stage))
         );
 
         VBox workoutsBox = new VBox(12,
@@ -89,11 +89,17 @@ public class DashboardScreen {
         VBox progressBox = new VBox(12,
                 progressImage,
                 createButton("View Daily Summary", () -> new DailySummaryScreen(user).start(stage)),
-                createButton("Today's Summary", () -> new TodayDashboardScreen().start(stage)),
-                createButton("Log Weight", () -> new LogWeightScreen().start(stage)),
+                createButton("Today's Summary", () -> new TodayDashboardScreen(user).start(stage)),
+                createButton("Log Weight", () -> new LogWeightScreen(user).start(stage)),
                 createButton("View Weight Chart", () -> new WeightChartScreen(user).start(stage)),
                 createButton("Weekly Progress", () -> new WeeklyProgressScreen(user).start(stage)),
-                createButton("Set Daily Goals", () -> new GoalScreen().start(stage)),
+                createButton("Set Daily Goals", () -> {
+                    try {
+                        new GoalScreen(user).start(stage);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
                 createButton("View/Edit Profile", () -> new UserProfileScreen(user).start(stage))
         );
 

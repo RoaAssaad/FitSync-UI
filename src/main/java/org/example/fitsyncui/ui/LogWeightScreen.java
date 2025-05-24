@@ -1,5 +1,8 @@
 package org.example.fitsyncui.ui;
 
+import org.example.fitsyncui.model.User;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -10,12 +13,23 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
 public class LogWeightScreen {
+    private final User user;
+
+    public LogWeightScreen(User user) {
+        this.user = user;
+    }
 
     public void start(Stage stage) {
-        boolean wasFullScreen = stage.isFullScreen(); // store fullscreen state
+        boolean wasFullScreen = stage.isFullScreen();
 
         Label title = new Label("Log Today’s Weight");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 22));
@@ -29,8 +43,7 @@ public class LogWeightScreen {
         styleInput(weightField);
 
         Button saveButton = new Button("Save");
-        saveButton.setPrefWidth(160);
-        saveButton.setPrefHeight(35);
+        saveButton.setPrefSize(160, 35);
         saveButton.setStyle(
                 "-fx-background-color: #2ECC71; " +
                         "-fx-text-fill: white; " +
@@ -39,8 +52,7 @@ public class LogWeightScreen {
         );
 
         Button backButton = new Button("Back");
-        backButton.setPrefWidth(160);
-        backButton.setPrefHeight(35);
+        backButton.setPrefSize(160, 35);
         backButton.setStyle(
                 "-fx-background-color: #3498DB; " +
                         "-fx-text-fill: white; " +
@@ -52,22 +64,69 @@ public class LogWeightScreen {
         status.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         status.setTextFill(Color.web("#E74C3C"));
 
+        ObjectMapper mapper = new ObjectMapper();
+
+        Runnable fetchExisting = () -> {
+            try {
+                LocalDate date = datePicker.getValue();
+                URL url = new URL("http://localhost:8080/api/weights/user/" + user.getId());
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/json");
+                if (conn.getResponseCode() == 200) {
+                    InputStream in = conn.getInputStream();
+                    List<Map<String, Object>> list = mapper.readValue(in, new TypeReference<>() {
+                    });
+                    weightField.clear();
+                    for (Map<String, Object> m : list) {
+                        if (m.get("date").toString().startsWith(date.toString())) {
+                            weightField.setText(m.get("weight").toString());
+                            break;
+                        }
+                    }
+                }
+                conn.disconnect();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        };
+
+        datePicker.setOnAction(e -> fetchExisting.run());
+        fetchExisting.run();
+
         saveButton.setOnAction(e -> {
             try {
                 double weight = Double.parseDouble(weightField.getText().trim());
                 LocalDate date = datePicker.getValue();
-
-                // Mock saving logic
-                status.setTextFill(Color.web("#27AE60"));
-                status.setText(String.format("Weight logged for %s: %.1f kg (mocked)", date, weight));
+                URL url = new URL("http://localhost:8080/api/weights/user/" + user.getId());
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                Map<String, Object> body = Map.of("date", date.toString(), "weight", weight);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(mapper.writeValueAsBytes(body));
+                }
+                int code = conn.getResponseCode();
+                if (code == 200 || code == 201) {
+                    status.setTextFill(Color.web("#27AE60"));
+                    status.setText(String.format("Weight logged for %s: %.1f kg", date, weight));
+                } else {
+                    status.setText("Save failed (" + code + ")");
+                }
+                conn.disconnect();
             } catch (NumberFormatException ex) {
                 status.setTextFill(Color.web("#E74C3C"));
                 status.setText("Please enter a valid weight.");
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                status.setTextFill(Color.web("#E74C3C"));
+                status.setText("Error saving weight.");
             }
         });
 
         backButton.setOnAction(e -> {
-            // Simply restore fullscreen state (mock back navigation)
+            new DashboardScreen(user).start(stage);
             stage.setFullScreen(wasFullScreen);
         });
 
@@ -81,17 +140,16 @@ public class LogWeightScreen {
         );
         form.setAlignment(Pos.CENTER);
         form.setMaxWidth(400);
+        form.setPadding(new Insets(25));
 
         VBox layout = new VBox(form);
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-background-color: #FDFEFE;");
-        layout.setPadding(new Insets(25));
         layout.prefWidthProperty().bind(stage.widthProperty());
         layout.prefHeightProperty().bind(stage.heightProperty());
 
-        Scene scene = new Scene(layout);
+        stage.setScene(new Scene(layout));
         stage.setTitle("Log Weight");
-        stage.setScene(scene);
         stage.setFullScreen(wasFullScreen);
         stage.show();
     }

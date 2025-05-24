@@ -1,5 +1,8 @@
 package org.example.fitsyncui.ui;
 
+import org.example.fitsyncui.model.User;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -12,32 +15,49 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class LogMealScreen {
 
-    private final ObservableList<String> mealNames = FXCollections.observableArrayList(
-            "Oatmeal", "Chicken Salad", "Apple", "Grilled Fish"
-    );
+    private final User user;
+    private final ObservableList<String> mealNames = FXCollections.observableArrayList();
     private final Map<String, Double> mealCalories = new HashMap<>();
     private final Map<String, String> mealTypes = new HashMap<>();
 
-    public LogMealScreen() {
-        // initialize default meals
-        mealCalories.put("Oatmeal", 250.0);
-        mealTypes.put("Oatmeal", "Breakfast");
-        mealCalories.put("Chicken Salad", 450.0);
-        mealTypes.put("Chicken Salad", "Lunch");
-        mealCalories.put("Apple", 95.0);
-        mealTypes.put("Apple", "Snack");
-        mealCalories.put("Grilled Fish", 600.0);
-        mealTypes.put("Grilled Fish", "Dinner");
+    public LogMealScreen(User user) {
+        this.user = user;
     }
 
     public void start(Stage stage) {
         boolean wasFullScreen = stage.isFullScreen();
+
+        try {
+            URL url = new URL("http://localhost:8080/api/meals/user/" + user.getId());
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            if (conn.getResponseCode() == 200) {
+                InputStream in = conn.getInputStream();
+                ObjectMapper mapper = new ObjectMapper();
+                List<Map<String, Object>> list = mapper.readValue(in, new TypeReference<>() {
+                });
+                for (Map<String, Object> m : list) {
+                    String name = m.get("foodName").toString();
+                    mealNames.add(name);
+                    mealCalories.put(name, ((Number) m.get("calories")).doubleValue());
+                    mealTypes.put(name, m.get("mealType").toString());
+                }
+            }
+            conn.disconnect();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
 
         Label title = new Label("Log a Meal");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 22));
@@ -81,12 +101,11 @@ public class LogMealScreen {
         messageLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         messageLabel.setTextFill(Color.web("#E74C3C"));
 
-        // Populate fields when selecting an existing meal
         mealDropdown.setOnAction(e -> {
             String sel = mealDropdown.getValue();
             if (sel != null) {
                 customMealField.setText(sel);
-                caloriesField.setText(String.valueOf(mealCalories.getOrDefault(sel, 0.0)));
+                caloriesField.setText(mealCalories.getOrDefault(sel, 0.0).toString());
                 mealTypeBox.setValue(mealTypes.getOrDefault(sel, ""));
             }
         });
@@ -106,10 +125,7 @@ public class LogMealScreen {
                 messageLabel.setText("Invalid calories input.");
                 return;
             }
-            // add to in-memory store
-            if (!mealNames.contains(name)) {
-                mealNames.add(name);
-            }
+            if (!mealNames.contains(name)) mealNames.add(name);
             mealCalories.put(name, cal);
             mealTypes.put(name, type);
             messageLabel.setTextFill(Color.web("#27AE60"));
@@ -137,14 +153,12 @@ public class LogMealScreen {
                 messageLabel.setText("Invalid calories input.");
                 return;
             }
-            // update in-memory
             mealNames.remove(selected);
             mealNames.add(newName);
             mealCalories.remove(selected);
             mealTypes.remove(selected);
             mealCalories.put(newName, newCal);
             mealTypes.put(newName, type);
-
             messageLabel.setTextFill(Color.web("#27AE60"));
             messageLabel.setText("Meal updated (mocked).");
             mealDropdown.setItems(mealNames);
@@ -167,7 +181,6 @@ public class LogMealScreen {
         });
 
         backButton.setOnAction(e -> {
-            // just close or go back; mock implementation
             stage.setFullScreen(wasFullScreen);
         });
 
@@ -186,17 +199,16 @@ public class LogMealScreen {
         );
         form.setAlignment(Pos.CENTER);
         form.setMaxWidth(400);
+        form.setPadding(new Insets(25));
 
         VBox layout = new VBox(form);
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-background-color: #FDFEFE;");
-        layout.setPadding(new Insets(25));
         layout.prefWidthProperty().bind(stage.widthProperty());
         layout.prefHeightProperty().bind(stage.heightProperty());
 
-        Scene scene = new Scene(layout);
+        stage.setScene(new Scene(layout));
         stage.setTitle("Log Meal");
-        stage.setScene(scene);
         stage.setFullScreen(wasFullScreen);
         stage.show();
     }

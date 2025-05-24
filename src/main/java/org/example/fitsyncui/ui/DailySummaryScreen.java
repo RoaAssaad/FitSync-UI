@@ -1,7 +1,7 @@
 package org.example.fitsyncui.ui;
 
-//import org.example.fitsyncui.model.User;
-
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -13,7 +13,12 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import org.example.fitsyncui.model.User;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
 public class DailySummaryScreen {
 
@@ -24,7 +29,7 @@ public class DailySummaryScreen {
     }
 
     public void start(Stage stage) {
-        boolean wasFullScreen = stage.isFullScreen(); // remember fullscreen state
+        boolean wasFullScreen = stage.isFullScreen();
 
         Label title = new Label("Your Daily Summary");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 24));
@@ -48,15 +53,48 @@ public class DailySummaryScreen {
 
         viewButton.setOnAction(e -> {
             LocalDate selectedDate = datePicker.getValue();
+            double totalIn = 0;
+            double totalOut = 0;
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                URL mealsUrl = new URL("http://localhost:8080/api/meals/user/" + user.getId());
+                HttpURLConnection mealsConn = (HttpURLConnection) mealsUrl.openConnection();
+                mealsConn.setRequestMethod("GET");
+                mealsConn.setRequestProperty("Accept", "application/json");
+                if (mealsConn.getResponseCode() == 200) {
+                    InputStream in = mealsConn.getInputStream();
+                    List<Map<String, Object>> meals = mapper.readValue(in, new TypeReference<>() {
+                    });
+                    for (Map<String, Object> m : meals) {
+                        String dateStr = m.containsKey("mealDate") ? m.get("mealDate").toString() : m.get("meal_date").toString();
+                        if (dateStr.startsWith(selectedDate.toString())) {
+                            totalIn += ((Number) m.get("calories")).doubleValue();
+                        }
+                    }
+                }
+                mealsConn.disconnect();
 
-            // Mocked/demo data only:
-            if (selectedDate.equals(LocalDate.now())) {
-                caloriesInLabel.setText("Calories Consumed: 550");
-                caloriesOutLabel.setText("Calories Burned: 320");
-            } else {
-                caloriesInLabel.setText("Calories Consumed: 0");
-                caloriesOutLabel.setText("Calories Burned: 0");
+                URL workoutsUrl = new URL("http://localhost:8080/api/workouts/user/" + user.getId());
+                HttpURLConnection workoutsConn = (HttpURLConnection) workoutsUrl.openConnection();
+                workoutsConn.setRequestMethod("GET");
+                workoutsConn.setRequestProperty("Accept", "application/json");
+                if (workoutsConn.getResponseCode() == 200) {
+                    InputStream in = workoutsConn.getInputStream();
+                    List<Map<String, Object>> workouts = mapper.readValue(in, new TypeReference<>() {
+                    });
+                    for (Map<String, Object> m : workouts) {
+                        String dateStr = m.containsKey("completionDate") ? m.get("completionDate").toString() : m.get("completion_date").toString();
+                        if (dateStr.startsWith(selectedDate.toString())) {
+                            totalOut += ((Number) m.get("duration")).doubleValue();
+                        }
+                    }
+                }
+                workoutsConn.disconnect();
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
+            caloriesInLabel.setText("Calories Consumed: " + (int) totalIn);
+            caloriesOutLabel.setText("Calories Burned: " + (int) totalOut);
         });
 
         backButton.setOnAction(e -> {

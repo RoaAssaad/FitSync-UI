@@ -1,5 +1,7 @@
 package org.example.fitsyncui.ui;
 
+import org.example.fitsyncui.model.User;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -10,10 +12,15 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+
 public class RegisterScreen {
 
     public void start(Stage stage) {
-        boolean wasFullScreen = stage.isFullScreen(); // save fullscreen state
+        boolean wasFullScreen = stage.isFullScreen();
 
         Label title = new Label("FitSync - Register");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 24));
@@ -71,25 +78,44 @@ public class RegisterScreen {
         messageLabel.setTextFill(Color.web("#E74C3C"));
 
         registerButton.setOnAction(e -> {
+            String name = nameField.getText().trim();
+            String email = emailField.getText().trim();
+            String password = passwordField.getText().trim();
+            String ageText = ageField.getText().trim();
+            String gender = genderBox.getValue();
+            String weightText = weightField.getText().trim();
+            String heightText = heightField.getText().trim();
             try {
-                // simple validation only
-                if (nameField.getText().trim().isEmpty()
-                        || emailField.getText().trim().isEmpty()
-                        || passwordField.getText().trim().isEmpty()
-                        || ageField.getText().trim().isEmpty()
-                        || genderBox.getValue() == null
-                        || weightField.getText().trim().isEmpty()
-                        || heightField.getText().trim().isEmpty()) {
+                if (name.isEmpty() || email.isEmpty() || password.isEmpty() ||
+                        ageText.isEmpty() || gender == null ||
+                        weightText.isEmpty() || heightText.isEmpty()) {
                     throw new IllegalArgumentException();
                 }
-                // parse numeric fields
-                Integer.parseInt(ageField.getText().trim());
-                Double.parseDouble(weightField.getText().trim());
-                Double.parseDouble(heightField.getText().trim());
-
-                messageLabel.setText("Registration successful! You can now log in.");
-                messageLabel.setTextFill(Color.web("#27AE60"));
+                int age = Integer.parseInt(ageText);
+                double weight = Double.parseDouble(weightText);
+                double height = Double.parseDouble(heightText);
+                User newUser = new User(name, email, password, age, gender, weight, height);
+                URL url = new URL("http://localhost:8080/api/users");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                ObjectMapper mapper = new ObjectMapper();
+                String json = mapper.writeValueAsString(newUser);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+                int code = conn.getResponseCode();
+                if (code == 200 || code == 201) {
+                    messageLabel.setText("Registration successful! You can now log in.");
+                    messageLabel.setTextFill(Color.web("#27AE60"));
+                } else {
+                    messageLabel.setText("Registration failed (" + code + ").");
+                    messageLabel.setTextFill(Color.web("#E74C3C"));
+                }
+                conn.disconnect();
             } catch (Exception ex) {
+                ex.printStackTrace();
                 messageLabel.setText("Please enter valid values.");
                 messageLabel.setTextFill(Color.web("#E74C3C"));
             }
