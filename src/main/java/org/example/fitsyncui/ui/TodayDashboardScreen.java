@@ -1,8 +1,7 @@
 package org.example.fitsyncui.ui;
 
-import org.example.fitsyncui.model.User;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.fitsyncui.model.User;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -18,7 +17,6 @@ import javafx.stage.Stage;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -31,9 +29,8 @@ public class TodayDashboardScreen {
 
     public void start(Stage stage) {
         boolean wasFullScreen = stage.isFullScreen();
-        LocalDate today = LocalDate.now();
 
-        Label title = new Label("Today at a Glance - " + today);
+        Label title = new Label("Today at a Glance");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 22));
         title.setTextFill(Color.web("#2C3E50"));
 
@@ -45,99 +42,11 @@ public class TodayDashboardScreen {
         Label intakeStatus = new Label();
         Label burnStatus = new Label();
 
-        ObjectMapper mapper = new ObjectMapper();
-        double sumIn = 0, sumOut = 0, inGoal = 0, burnGoal = 0;
+        ListView<String> mealsList = new ListView<>();
+        mealsList.setPrefHeight(100);
 
-        try {
-            URL mealsUrl = new URL("http://localhost:8080/api/meals/user/" + user.getId());
-            HttpURLConnection mConn = (HttpURLConnection) mealsUrl.openConnection();
-            mConn.setRequestMethod("GET");
-            mConn.setRequestProperty("Accept", "application/json");
-            if (mConn.getResponseCode() == 200) {
-                InputStream in = mConn.getInputStream();
-                List<Map<String, Object>> meals = mapper.readValue(in, new TypeReference<>() {
-                });
-                ObservableList<String> mList = FXCollections.observableArrayList();
-                for (Map<String, Object> m : meals) {
-                    String date = m.get("mealDate").toString().substring(0, 10);
-                    if (date.equals(today.toString())) {
-                        double c = ((Number) m.get("calories")).doubleValue();
-                        sumIn += c;
-                        mList.add(String.format("%s (%s) - %.0f cal",
-                                m.get("foodName"), m.get("mealType"), c));
-                    }
-                }
-                ListView<String> mealsList = new ListView<>(mList);
-                mealsList.setPrefHeight(100);
-                mealsList.setId("mealsList");
-                mConn.disconnect();
-                // temporarily store list in label ID to retrieve below
-                caloriesInLabel.setUserData(mealsList);
-            }
-        } catch (Exception ignored) {
-        }
-
-        try {
-            URL workoutsUrl = new URL("http://localhost:8080/api/workouts/user/" + user.getId());
-            HttpURLConnection wConn = (HttpURLConnection) workoutsUrl.openConnection();
-            wConn.setRequestMethod("GET");
-            wConn.setRequestProperty("Accept", "application/json");
-            if (wConn.getResponseCode() == 200) {
-                InputStream in = wConn.getInputStream();
-                List<Map<String, Object>> wList = mapper.readValue(in, new TypeReference<>() {
-                });
-                ObservableList<String> workList = FXCollections.observableArrayList();
-                for (Map<String, Object> w : wList) {
-                    String date = w.get("completionDate").toString().substring(0, 10);
-                    if (date.equals(today.toString())) {
-                        double d = ((Number) w.get("duration")).doubleValue();
-                        sumOut += d;
-                        workList.add(w.get("name").toString());
-                    }
-                }
-                ListView<String> workoutsList = new ListView<>(workList);
-                workoutsList.setPrefHeight(100);
-                workoutsList.setId("workoutsList");
-                wConn.disconnect();
-                caloriesOutLabel.setUserData(workoutsList);
-            }
-        } catch (Exception ignored) {
-        }
-
-        try {
-            URL goalsUrl = new URL("http://localhost:8080/api/goals/user/" + user.getId());
-            HttpURLConnection gConn = (HttpURLConnection) goalsUrl.openConnection();
-            gConn.setRequestMethod("GET");
-            gConn.setRequestProperty("Accept", "application/json");
-            if (gConn.getResponseCode() == 200) {
-                InputStream in = gConn.getInputStream();
-                Map<String, Object> g = mapper.readValue(in, new TypeReference<>() {
-                });
-                inGoal = ((Number) g.get("caloriesInGoal")).doubleValue();
-                burnGoal = ((Number) g.get("caloriesBurnGoal")).doubleValue();
-            }
-            gConn.disconnect();
-        } catch (Exception ignored) {
-        }
-
-        caloriesInLabel.setText("Calories Consumed: " + (int) sumIn);
-        caloriesOutLabel.setText("Calories Burned: " + (int) sumOut);
-        netCaloriesLabel.setText("Net Calories: " + (int) (sumIn - sumOut));
-
-        intakeGoalLabel.setText("Intake Goal: " + (int) inGoal);
-        burnGoalLabel.setText("Burn Goal: " + (int) burnGoal);
-
-        intakeStatus.setText(sumIn >= inGoal
-                ? "You reached your intake goal!"
-                : String.format("%.0f cal left to reach intake goal.", inGoal - sumIn)
-        );
-        burnStatus.setText(sumOut >= burnGoal
-                ? "You hit your burn goal!"
-                : String.format("%.0f cal left to burn.", burnGoal - sumOut)
-        );
-
-        ListView<String> mealsList = (ListView<String>) caloriesInLabel.getUserData();
-        ListView<String> workoutsList = (ListView<String>) caloriesOutLabel.getUserData();
+        ListView<String> workoutsList = new ListView<>();
+        workoutsList.setPrefHeight(100);
 
         Button backButton = new Button("Back");
         backButton.setPrefSize(160, 35);
@@ -168,9 +77,44 @@ public class TodayDashboardScreen {
         Label mealsTitle = new Label("Meals Logged:");
         mealsTitle.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         mealsTitle.setTextFill(Color.web("#34495E"));
+
         Label workoutsTitle = new Label("Workouts Logged:");
         workoutsTitle.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         workoutsTitle.setTextFill(Color.web("#34495E"));
+
+        // Fetch today dashboard summary
+        try {
+            URL url = new URL("http://localhost:8080/api/today/" + user.getId());
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+
+            if (conn.getResponseCode() == 200) {
+                ObjectMapper mapper = new ObjectMapper();
+                InputStream in = conn.getInputStream();
+                Map<String, Object> data = mapper.readValue(in, Map.class);
+
+                caloriesInLabel.setText("Calories Consumed: " + ((Number) data.get("caloriesIn")).intValue());
+                caloriesOutLabel.setText("Calories Burned: " + ((Number) data.get("caloriesOut")).intValue());
+                netCaloriesLabel.setText("Net Calories: " + ((Number) data.get("netCalories")).intValue());
+
+                intakeGoalLabel.setText("Intake Goal: " + ((Number) data.get("intakeGoal")).intValue());
+                burnGoalLabel.setText("Burn Goal: " + ((Number) data.get("burnGoal")).intValue());
+
+                intakeStatus.setText(data.get("intakeStatus").toString());
+                burnStatus.setText(data.get("burnStatus").toString());
+
+                ObservableList<String> mealItems = FXCollections.observableArrayList((List<String>) data.get("meals"));
+                mealsList.setItems(mealItems);
+
+                ObservableList<String> workoutItems = FXCollections.observableArrayList((List<String>) data.get("workouts"));
+                workoutsList.setItems(workoutItems);
+            }
+
+            conn.disconnect();
+        } catch (Exception ex) {
+            caloriesInLabel.setText("Failed to load dashboard.");
+        }
 
         VBox layout = new VBox(12,
                 title,
