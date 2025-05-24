@@ -1,7 +1,7 @@
 package org.example.fitsyncui.ui;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.fitsyncui.model.User;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -11,17 +11,15 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
-import org.example.fitsyncui.model.User;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Map;
 
 public class DailySummaryScreen {
-
     private final User user;
 
     public DailySummaryScreen(User user) {
@@ -46,6 +44,7 @@ public class DailySummaryScreen {
 
         Label caloriesInLabel = new Label("Calories Consumed: -");
         Label caloriesOutLabel = new Label("Calories Burned: -");
+
         for (Label label : new Label[]{caloriesInLabel, caloriesOutLabel}) {
             label.setFont(Font.font("Arial", FontWeight.NORMAL, 16));
             label.setTextFill(Color.web("#34495E"));
@@ -53,48 +52,41 @@ public class DailySummaryScreen {
 
         viewButton.setOnAction(e -> {
             LocalDate selectedDate = datePicker.getValue();
-            double totalIn = 0;
-            double totalOut = 0;
+            if (selectedDate == null) return;
+
             try {
                 ObjectMapper mapper = new ObjectMapper();
-                URL mealsUrl = new URL("http://localhost:8080/api/meals/user/" + user.getId());
-                HttpURLConnection mealsConn = (HttpURLConnection) mealsUrl.openConnection();
-                mealsConn.setRequestMethod("GET");
-                mealsConn.setRequestProperty("Accept", "application/json");
-                if (mealsConn.getResponseCode() == 200) {
-                    InputStream in = mealsConn.getInputStream();
-                    List<Map<String, Object>> meals = mapper.readValue(in, new TypeReference<>() {
-                    });
-                    for (Map<String, Object> m : meals) {
-                        String dateStr = m.containsKey("mealDate") ? m.get("mealDate").toString() : m.get("meal_date").toString();
-                        if (dateStr.startsWith(selectedDate.toString())) {
-                            totalIn += ((Number) m.get("calories")).doubleValue();
-                        }
-                    }
-                }
-                mealsConn.disconnect();
 
-                URL workoutsUrl = new URL("http://localhost:8080/api/workouts/user/" + user.getId());
-                HttpURLConnection workoutsConn = (HttpURLConnection) workoutsUrl.openConnection();
-                workoutsConn.setRequestMethod("GET");
-                workoutsConn.setRequestProperty("Accept", "application/json");
-                if (workoutsConn.getResponseCode() == 200) {
-                    InputStream in = workoutsConn.getInputStream();
-                    List<Map<String, Object>> workouts = mapper.readValue(in, new TypeReference<>() {
-                    });
-                    for (Map<String, Object> m : workouts) {
-                        String dateStr = m.containsKey("completionDate") ? m.get("completionDate").toString() : m.get("completion_date").toString();
-                        if (dateStr.startsWith(selectedDate.toString())) {
-                            totalOut += ((Number) m.get("duration")).doubleValue();
-                        }
-                    }
+                // Trigger calculation
+                URL postUrl = new URL("http://localhost:8080/api/v1/summary/calculate?userId=" + user.getId() + "&date=" + selectedDate);
+                HttpURLConnection postConn = (HttpURLConnection) postUrl.openConnection();
+                postConn.setRequestMethod("POST");
+                postConn.setDoOutput(true);
+                postConn.setRequestProperty("Accept", "application/json");
+                postConn.getResponseCode(); // trigger
+
+                // Then fetch summary
+                URL getUrl = new URL("http://localhost:8080/api/v1/summary?userId=" + user.getId() + "&date=" + selectedDate);
+                HttpURLConnection getConn = (HttpURLConnection) getUrl.openConnection();
+                getConn.setRequestMethod("GET");
+                getConn.setRequestProperty("Accept", "application/json");
+
+                if (getConn.getResponseCode() == 200) {
+                    InputStream in = getConn.getInputStream();
+                    Map<String, Object> result = mapper.readValue(in, Map.class);
+                    double caloriesIn = ((Number) result.getOrDefault("caloriesConsumed", 0)).doubleValue();
+                    double caloriesOut = ((Number) result.getOrDefault("caloriesBurned", 0)).doubleValue();
+                    caloriesInLabel.setText("Calories Consumed: " + (int) caloriesIn);
+                    caloriesOutLabel.setText("Calories Burned: " + (int) caloriesOut);
+                } else {
+                    caloriesInLabel.setText("Calories Consumed: -");
+                    caloriesOutLabel.setText("Calories Burned: -");
                 }
-                workoutsConn.disconnect();
+
+                getConn.disconnect();
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
-            caloriesInLabel.setText("Calories Consumed: " + (int) totalIn);
-            caloriesOutLabel.setText("Calories Burned: " + (int) totalOut);
         });
 
         backButton.setOnAction(e -> {
@@ -102,14 +94,7 @@ public class DailySummaryScreen {
             stage.setFullScreen(wasFullScreen);
         });
 
-        VBox layout = new VBox(14,
-                title,
-                datePicker,
-                viewButton,
-                caloriesInLabel,
-                caloriesOutLabel,
-                backButton
-        );
+        VBox layout = new VBox(14, title, datePicker, viewButton, caloriesInLabel, caloriesOutLabel, backButton);
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-background-color: #FDFEFE;");
         layout.setPadding(new Insets(25));
@@ -126,22 +111,12 @@ public class DailySummaryScreen {
     private void styleInput(Control control) {
         control.setPrefHeight(40);
         control.setMaxWidth(300);
-        control.setStyle(
-                "-fx-background-color: #ECF0F1; " +
-                        "-fx-border-color: #BDC3C7; " +
-                        "-fx-border-radius: 5; " +
-                        "-fx-background-radius: 5;"
-        );
+        control.setStyle("-fx-background-color: #ECF0F1; -fx-border-color: #BDC3C7; -fx-border-radius: 5; -fx-background-radius: 5;");
     }
 
     private void styleButton(Button button, String color) {
         button.setPrefWidth(160);
         button.setPrefHeight(35);
-        button.setStyle(
-                "-fx-background-color: " + color + "; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
-        );
+        button.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
     }
 }
