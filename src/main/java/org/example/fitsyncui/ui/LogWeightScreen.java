@@ -1,7 +1,6 @@
 package org.example.fitsyncui.ui;
 
 import org.example.fitsyncui.model.User;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -17,8 +16,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Map;
 
 public class LogWeightScreen {
@@ -44,21 +43,11 @@ public class LogWeightScreen {
 
         Button saveButton = new Button("Save");
         saveButton.setPrefSize(160, 35);
-        saveButton.setStyle(
-                "-fx-background-color: #2ECC71; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
-        );
+        saveButton.setStyle("-fx-background-color: #2ECC71; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
 
         Button backButton = new Button("Back");
         backButton.setPrefSize(160, 35);
-        backButton.setStyle(
-                "-fx-background-color: #3498DB; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
-        );
+        backButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
 
         Label status = new Label();
         status.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
@@ -69,21 +58,14 @@ public class LogWeightScreen {
         Runnable fetchExisting = () -> {
             try {
                 LocalDate date = datePicker.getValue();
-                URL url = new URL("http://localhost:8080/api/weights/user/" + user.getId());
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                String endpoint = String.format("http://localhost:8080/api/weights/%d/by-date?date=%s", user.getId(), date);
+                HttpURLConnection conn = (HttpURLConnection) new URL(endpoint).openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/json");
                 if (conn.getResponseCode() == 200) {
                     InputStream in = conn.getInputStream();
-                    List<Map<String, Object>> list = mapper.readValue(in, new TypeReference<>() {
-                    });
-                    weightField.clear();
-                    for (Map<String, Object> m : list) {
-                        if (m.get("date").toString().startsWith(date.toString())) {
-                            weightField.setText(m.get("weight").toString());
-                            break;
-                        }
-                    }
+                    Map<String, Object> weightData = mapper.readValue(in, Map.class);
+                    weightField.setText(weightData.get("weight").toString());
                 }
                 conn.disconnect();
             } catch (Exception ex) {
@@ -98,15 +80,18 @@ public class LogWeightScreen {
             try {
                 double weight = Double.parseDouble(weightField.getText().trim());
                 LocalDate date = datePicker.getValue();
-                URL url = new URL("http://localhost:8080/api/weights/user/" + user.getId());
+
+                URL url = new URL("http://localhost:8080/api/weights");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
-                conn.setRequestProperty("Content-Type", "application/json");
-                Map<String, Object> body = Map.of("date", date.toString(), "weight", weight);
+                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+                String body = String.format("userId=%d&date=%s&weight=%.1f", user.getId(), date, weight);
                 try (OutputStream os = conn.getOutputStream()) {
-                    os.write(mapper.writeValueAsBytes(body));
+                    os.write(body.getBytes(StandardCharsets.UTF_8));
                 }
+
                 int code = conn.getResponseCode();
                 if (code == 200 || code == 201) {
                     status.setTextFill(Color.web("#27AE60"));
@@ -114,6 +99,7 @@ public class LogWeightScreen {
                 } else {
                     status.setText("Save failed (" + code + ")");
                 }
+
                 conn.disconnect();
             } catch (NumberFormatException ex) {
                 status.setTextFill(Color.web("#E74C3C"));
@@ -130,14 +116,7 @@ public class LogWeightScreen {
             stage.setFullScreen(wasFullScreen);
         });
 
-        VBox form = new VBox(12,
-                title,
-                datePicker,
-                weightField,
-                saveButton,
-                backButton,
-                status
-        );
+        VBox form = new VBox(12, title, datePicker, weightField, saveButton, backButton, status);
         form.setAlignment(Pos.CENTER);
         form.setMaxWidth(400);
         form.setPadding(new Insets(25));
@@ -157,11 +136,6 @@ public class LogWeightScreen {
     private void styleInput(Control control) {
         control.setPrefHeight(40);
         control.setMaxWidth(300);
-        control.setStyle(
-                "-fx-background-color: #ECF0F1; " +
-                        "-fx-border-color: #BDC3C7; " +
-                        "-fx-border-radius: 5; " +
-                        "-fx-background-radius: 5;"
-        );
+        control.setStyle("-fx-background-color: #ECF0F1; -fx-border-color: #BDC3C7; -fx-border-radius: 5; -fx-background-radius: 5;");
     }
 }
