@@ -1,6 +1,5 @@
 package org.example.fitsyncui.ui;
 
-import org.example.fitsyncui.model.User;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.collections.FXCollections;
@@ -14,17 +13,21 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+import org.example.fitsyncui.model.User;
 
-import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class LogWorkoutScreen {
     private final User user;
     private final ObservableList<String> workoutNames = FXCollections.observableArrayList();
+    private final Map<String, Integer> workoutNameToId = new HashMap<>();
+    private final Map<String, Integer> workoutCalories = new HashMap<>();
 
     public LogWorkoutScreen(User user) {
         this.user = user;
@@ -32,40 +35,13 @@ public class LogWorkoutScreen {
 
     public void start(Stage stage) {
         boolean wasFullScreen = stage.isFullScreen();
+        stage.setTitle("Log Workout");
 
-        // 1) FETCH workouts for this user
-        try {
-            URL url = new URL("http://localhost:8080/api/workouts/user/" + user.getId());
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/json");
-
-            if (conn.getResponseCode() == 200) {
-                InputStream in = conn.getInputStream();
-                ObjectMapper mapper = new ObjectMapper();
-                // assumes each workout JSON has at least a "name" field
-                List<Map<String, Object>> list = mapper.readValue(
-                        in, new TypeReference<>() {
-                        }
-                );
-                for (Map<String, Object> w : list) {
-                    String name = w.get("name").toString();
-                    workoutNames.add(name);
-                }
-            } else {
-                System.err.println("Failed to fetch workouts: " + conn.getResponseCode());
-            }
-            conn.disconnect();
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-
-        // 2) BUILD UI
         Label title = new Label("Log a Workout");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 22));
         title.setTextFill(Color.web("#2C3E50"));
 
-        ComboBox<String> workoutDropdown = new ComboBox<>(workoutNames);
+        ComboBox<String> workoutDropdown = new ComboBox<>();
         workoutDropdown.setPromptText("Select Workout");
         styleInput(workoutDropdown);
 
@@ -81,89 +57,85 @@ public class LogWorkoutScreen {
         styleInput(datePicker);
 
         Button logButton = new Button("Log Workout");
-        Button updateButton = new Button("Update Workout");
-        Button deleteButton = new Button("Delete Workout");
-        Button backButton = new Button("Back");
-
         styleButton(logButton, "#2ECC71");
-        styleButton(updateButton, "#F1C40F");
-        styleButton(deleteButton, "#E74C3C");
+
+        Button backButton = new Button("Back");
         styleButton(backButton, "#3498DB");
 
         Label messageLabel = new Label();
         messageLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         messageLabel.setTextFill(Color.web("#E74C3C"));
 
-        // when selecting from dropdown, populate name field
+        loadWorkouts(workoutDropdown);
+
         workoutDropdown.setOnAction(e -> {
-            String sel = workoutDropdown.getValue();
-            if (sel != null) {
-                workoutNameField.setText(sel);
-                caloriesField.clear();
+            String selected = workoutDropdown.getValue();
+            if (selected != null) {
+                workoutNameField.setText(selected);
+                Integer cal = workoutCalories.get(selected);
+                caloriesField.setText(cal != null ? cal.toString() : "");
             }
         });
 
-        // your existing mock handlers:
         logButton.setOnAction(e -> {
-            String name = workoutNameField.getText().trim();
-            String cal = caloriesField.getText().trim();
+            String workoutName = workoutNameField.getText().trim();
+            String caloriesText = caloriesField.getText().trim();
             LocalDate date = datePicker.getValue();
-            if (name.isEmpty() || cal.isEmpty() || date == null) {
+
+            if (workoutName.isEmpty() || caloriesText.isEmpty() || date == null) {
                 messageLabel.setText("Fill in all fields.");
                 return;
             }
+
             try {
-                Integer.parseInt(cal);
-                if (!workoutNames.contains(name)) {
-                    workoutNames.add(name);
-                    workoutDropdown.setItems(workoutNames);
+                int duration = Integer.parseInt(caloriesText);
+
+                // 1. Create or update workout
+                URL createUrl = new URL("http://localhost:8080/api/workouts");
+                HttpURLConnection createConn = (HttpURLConnection) createUrl.openConnection();
+                createConn.setRequestMethod("POST");
+                createConn.setDoOutput(true);
+                createConn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+                String createBody = "name=" + workoutName + "&duration=" + duration;
+                try (OutputStream os = createConn.getOutputStream()) {
+                    os.write(createBody.getBytes());
                 }
-                messageLabel.setTextFill(Color.web("#27AE60"));
-                messageLabel.setText("Workout logged (mocked)!");
-                workoutDropdown.setValue(null);
-                workoutNameField.clear();
-                caloriesField.clear();
-            } catch (NumberFormatException ex) {
-                messageLabel.setText("Invalid calories input.");
-            }
-        });
 
-        updateButton.setOnAction(e -> {
-            String selected = workoutDropdown.getValue();
-            String newName = workoutNameField.getText().trim();
-            String newCal = caloriesField.getText().trim();
-            if (selected == null || newName.isEmpty() || newCal.isEmpty()) {
-                messageLabel.setText("Select workout and enter new values.");
-                return;
-            }
-            try {
-                Integer.parseInt(newCal);
-                workoutNames.remove(selected);
-                workoutNames.add(newName);
-                workoutDropdown.setItems(workoutNames);
-                messageLabel.setTextFill(Color.web("#27AE60"));
-                messageLabel.setText("Workout updated (mocked).");
-                workoutDropdown.setValue(null);
-                workoutNameField.clear();
-                caloriesField.clear();
-            } catch (NumberFormatException ex) {
-                messageLabel.setText("Invalid calorie input.");
-            }
-        });
+                if (createConn.getResponseCode() == 200) {
+                    ObjectMapper mapper = new ObjectMapper();
+                    Map<String, Object> response = mapper.readValue(createConn.getInputStream(), new TypeReference<>() {});
+                    int workoutId = (Integer) response.get("id");
 
-        deleteButton.setOnAction(e -> {
-            String selected = workoutDropdown.getValue();
-            if (selected == null) {
-                messageLabel.setText("Select a workout to delete.");
-                return;
+                    // 2. Log workout
+                    URL logUrl = new URL("http://localhost:8080/api/workouts/log");
+                    HttpURLConnection logConn = (HttpURLConnection) logUrl.openConnection();
+                    logConn.setRequestMethod("POST");
+                    logConn.setDoOutput(true);
+                    logConn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+                    String logBody = "userId=" + user.getId() + "&workoutId=" + workoutId + "&date=" + date;
+                    try (OutputStream os = logConn.getOutputStream()) {
+                        os.write(logBody.getBytes());
+                    }
+
+                    if (logConn.getResponseCode() == 200) {
+                        messageLabel.setTextFill(Color.web("#27AE60"));
+                        messageLabel.setText("Workout logged successfully!");
+                        loadWorkouts(workoutDropdown);
+                        workoutDropdown.setValue(null);
+                        workoutNameField.clear();
+                        caloriesField.clear();
+                    } else {
+                        messageLabel.setText("Failed to log workout.");
+                    }
+                } else {
+                    messageLabel.setText("Failed to save workout.");
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                messageLabel.setText("Error occurred.");
             }
-            workoutNames.remove(selected);
-            workoutDropdown.setItems(workoutNames);
-            messageLabel.setTextFill(Color.web("#27AE60"));
-            messageLabel.setText("Workout deleted (mocked).");
-            workoutDropdown.setValue(null);
-            workoutNameField.clear();
-            caloriesField.clear();
         });
 
         backButton.setOnAction(e -> {
@@ -172,16 +144,8 @@ public class LogWorkoutScreen {
         });
 
         VBox layout = new VBox(12,
-                title,
-                workoutDropdown,
-                workoutNameField,
-                caloriesField,
-                datePicker,
-                logButton,
-                updateButton,
-                deleteButton,
-                backButton,
-                messageLabel
+                title, workoutDropdown, workoutNameField, caloriesField, datePicker,
+                logButton, backButton, messageLabel
         );
         layout.setPadding(new Insets(25));
         layout.setAlignment(Pos.CENTER);
@@ -190,31 +154,52 @@ public class LogWorkoutScreen {
         layout.prefHeightProperty().bind(stage.heightProperty());
 
         Scene scene = new Scene(layout);
-        stage.setTitle("Log Workout");
         stage.setScene(scene);
         stage.setFullScreen(wasFullScreen);
         stage.show();
     }
 
+    private void loadWorkouts(ComboBox<String> dropdown) {
+        workoutNames.clear();
+        workoutNameToId.clear();
+        workoutCalories.clear();
+        try {
+            URL url = new URL("http://localhost:8080/api/workouts/all");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+
+            if (conn.getResponseCode() == 200) {
+                ObjectMapper mapper = new ObjectMapper();
+                List<Map<String, Object>> list = mapper.readValue(conn.getInputStream(), new TypeReference<>() {});
+                for (Map<String, Object> w : list) {
+                    String name = w.get("name").toString();
+                    int id = (Integer) w.get("id");
+                    int duration = (Integer) w.get("duration");
+
+                    if (!workoutNames.contains(name)) {
+                        workoutNames.add(name);
+                        workoutNameToId.put(name, id);
+                        workoutCalories.put(name, duration);
+                    }
+                }
+            }
+            conn.disconnect();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        dropdown.setItems(workoutNames);
+    }
+
     private void styleInput(Control control) {
         control.setPrefHeight(40);
         control.setMaxWidth(300);
-        control.setStyle(
-                "-fx-background-color: #ECF0F1; " +
-                        "-fx-border-color: #BDC3C7; " +
-                        "-fx-border-radius: 5; " +
-                        "-fx-background-radius: 5;"
-        );
+        control.setStyle("-fx-background-color: #ECF0F1; -fx-border-color: #BDC3C7; -fx-border-radius: 5; -fx-background-radius: 5;");
     }
 
     private void styleButton(Button button, String color) {
         button.setPrefWidth(160);
         button.setPrefHeight(35);
-        button.setStyle(
-                "-fx-background-color: " + color + "; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
-        );
+        button.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
     }
 }
