@@ -1,6 +1,5 @@
 package org.example.fitsyncui.ui;
 
-import org.example.fitsyncui.model.User;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.collections.FXCollections;
@@ -14,6 +13,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+import org.example.fitsyncui.model.User;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -39,24 +39,15 @@ public class ViewMealsScreen {
 
         DatePicker datePicker = new DatePicker(LocalDate.now());
         datePicker.setPrefSize(300, 40);
-        datePicker.setStyle(
-                "-fx-background-color: #ECF0F1; -fx-border-color: #BDC3C7; " +
-                        "-fx-border-radius: 5; -fx-background-radius: 5;"
-        );
+        datePicker.setStyle("-fx-background-color: #ECF0F1; -fx-border-color: #BDC3C7; -fx-border-radius: 5; -fx-background-radius: 5;");
 
         Button viewButton = new Button("View Meals");
         viewButton.setPrefSize(140, 35);
-        viewButton.setStyle(
-                "-fx-background-color: #2ECC71; -fx-text-fill: white; " +
-                        "-fx-font-weight: bold; -fx-background-radius: 8;"
-        );
+        viewButton.setStyle("-fx-background-color: #2ECC71; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
 
         Button backButton = new Button("Back");
         backButton.setPrefSize(140, 35);
-        backButton.setStyle(
-                "-fx-background-color: #3498DB; -fx-text-fill: white; " +
-                        "-fx-font-weight: bold; -fx-background-radius: 8;"
-        );
+        backButton.setStyle("-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
         backButton.setOnAction(e -> {
             new DashboardScreen(user).start(stage);
             stage.setFullScreen(wasFullScreen);
@@ -69,33 +60,31 @@ public class ViewMealsScreen {
         messageLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         messageLabel.setTextFill(Color.web("#34495E"));
 
-        ObjectMapper mapper = new ObjectMapper();
-
         viewButton.setOnAction(e -> {
             try {
                 LocalDate selectedDate = datePicker.getValue();
-                URL url = new URL("http://localhost:8080/api/meals/user/" + user.getId());
+                String apiUrl = "http://localhost:8080/api/meals/user/" + user.getId() + "?date=" + selectedDate;
+                URL url = new URL(apiUrl);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/json");
+
                 ObservableList<String> items = FXCollections.observableArrayList();
                 if (conn.getResponseCode() == 200) {
                     InputStream in = conn.getInputStream();
-                    List<Map<String, Object>> list = mapper.readValue(in, new TypeReference<>() {
-                    });
+                    ObjectMapper mapper = new ObjectMapper();
+                    List<Map<String, Object>> list = mapper.readValue(in, new TypeReference<>() {});
                     for (Map<String, Object> m : list) {
-                        String date = m.get("mealDate").toString().substring(0, 10);
-                        if (LocalDate.parse(date).equals(selectedDate)) {
-                            items.add(String.format(
-                                    "%s (%s): %.0f cal",
-                                    m.get("foodName"),
-                                    m.get("mealType"),
-                                    ((Number) m.get("calories")).doubleValue()
-                            ));
-                        }
+                        Map<String, Object> meal = (Map<String, Object>) m.get("meal");
+                        items.add(String.format("%s (%s): %.0f cal",
+                                meal.get("foodName"),
+                                meal.get("mealType"),
+                                ((Number) meal.get("calories")).doubleValue()
+                        ));
                     }
                 }
                 conn.disconnect();
+
                 if (items.isEmpty()) {
                     messageLabel.setText("No meals found for this date.");
                     messageLabel.setTextFill(Color.web("#E74C3C"));
@@ -104,20 +93,15 @@ public class ViewMealsScreen {
                     messageLabel.setTextFill(Color.web("#27AE60"));
                 }
                 mealList.setItems(items);
+
             } catch (Exception ex) {
+                ex.printStackTrace();
                 messageLabel.setText("Error fetching meals.");
                 messageLabel.setTextFill(Color.web("#E74C3C"));
             }
         });
 
-        VBox layout = new VBox(12,
-                title,
-                datePicker,
-                viewButton,
-                messageLabel,
-                mealList,
-                backButton
-        );
+        VBox layout = new VBox(12, title, datePicker, viewButton, messageLabel, mealList, backButton);
         layout.setPadding(new Insets(25));
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-background-color: #FDFEFE;");
