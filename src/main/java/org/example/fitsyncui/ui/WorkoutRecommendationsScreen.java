@@ -1,5 +1,7 @@
 package org.example.fitsyncui.ui;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -13,6 +15,12 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import org.example.fitsyncui.model.User;
+
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.List;
+import java.util.Map;
 
 public class WorkoutRecommendationsScreen {
 
@@ -63,59 +71,69 @@ public class WorkoutRecommendationsScreen {
         resultList.setPrefHeight(200);
 
         recommendButton.setOnAction(e -> {
-            String difficulty = lowBtn.isSelected() ? "Easy"
-                    : modBtn.isSelected() ? "Medium"
-                    : highBtn.isSelected() ? "Hard"
-                    : null;
-            String goalText = goalField.getText().trim();
-            Integer goalCal = null;
-            if (!goalText.isEmpty()) {
-                try {
-                    goalCal = Integer.parseInt(goalText);
-                } catch (NumberFormatException ex) {
-                    status.setTextFill(Color.web("#E74C3C"));
-                    status.setText("Invalid calorie input.");
-                    return;
+            try {
+                String difficulty = lowBtn.isSelected() ? "Easy"
+                        : modBtn.isSelected() ? "Medium"
+                        : highBtn.isSelected() ? "Hard"
+                        : null;
+
+                String goalText = goalField.getText().trim();
+                Double goalCal = null;
+                if (!goalText.isEmpty()) {
+                    try {
+                        goalCal = Double.parseDouble(goalText);
+                    } catch (NumberFormatException ex) {
+                        status.setTextFill(Color.web("#E74C3C"));
+                        status.setText("Invalid calorie input.");
+                        return;
+                    }
                 }
-            }
 
-            ObservableList<String> recs = FXCollections.observableArrayList();
-            if ("Easy".equals(difficulty)) {
-                recs.addAll(
-                        "Yoga (Flexibility) - 4.0 cal/min [Easy]",
-                        "Walking (Cardio)   - 5.0 cal/min [Easy]"
-                );
-            } else if ("Medium".equals(difficulty)) {
-                recs.addAll(
-                        "Cycling (Cardio)           - 7.5 cal/min [Medium]",
-                        "Bodyweight Training (Strength) - 6.5 cal/min [Medium]"
-                );
-            } else if ("Hard".equals(difficulty)) {
-                recs.addAll(
-                        "HIIT (Cardio)      - 10.0 cal/min [Hard]",
-                        "CrossFit (Strength) - 9.0 cal/min [Hard]"
-                );
-            }
+                StringBuilder urlBuilder = new StringBuilder("http://localhost:8080/api/workout-recommendations?");
+                if (difficulty != null) {
+                    urlBuilder.append("difficulty=").append(difficulty);
+                }
+                if (goalCal != null) {
+                    if (urlBuilder.toString().contains("=")) urlBuilder.append("&");
+                    urlBuilder.append("calories=").append(goalCal);
+                }
 
-            // Optional goal filter: keep only those ≥ goalCal if specified
-            if (goalCal != null) {
-                Integer finalGoalCal = goalCal;
-                recs.removeIf(item -> {
-                    // parse first numeric part before space
-                    String num = item.split(" ")[1];
-                    double rate = Double.parseDouble(num);
-                    return rate * 30 < finalGoalCal;
-                });
-            }
+                URL url = new URL(urlBuilder.toString());
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/json");
 
-            if (recs.isEmpty()) {
+                ObservableList<String> recs = FXCollections.observableArrayList();
+                if (conn.getResponseCode() == 200) {
+                    InputStream in = conn.getInputStream();
+                    List<Map<String, Object>> exercises = new ObjectMapper().readValue(in, new TypeReference<>() {
+                    });
+                    for (Map<String, Object> ex : exercises) {
+                        recs.add(String.format(
+                                "%s (%s) - %.1f cal/min [%s]",
+                                ex.get("name"),
+                                ex.get("category"),
+                                ((Number) ex.get("caloriesPerMinute")).doubleValue(),
+                                ex.get("difficultyLevel")
+                        ));
+                    }
+                }
+                conn.disconnect();
+
+                if (recs.isEmpty()) {
+                    status.setTextFill(Color.web("#E74C3C"));
+                    status.setText("No matching workouts found.");
+                } else {
+                    status.setTextFill(Color.web("#27AE60"));
+                    status.setText("Recommended workouts:");
+                }
+                resultList.setItems(recs);
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
                 status.setTextFill(Color.web("#E74C3C"));
-                status.setText("No matching workouts found.");
-            } else {
-                status.setTextFill(Color.web("#27AE60"));
-                status.setText("Recommended workouts:");
+                status.setText("Error fetching data.");
             }
-            resultList.setItems(recs);
         });
 
         backButton.setOnAction(e -> {
@@ -123,15 +141,7 @@ public class WorkoutRecommendationsScreen {
             stage.setFullScreen(wasFullScreen);
         });
 
-        VBox layout = new VBox(12,
-                title,
-                levelBox,
-                goalField,
-                recommendButton,
-                status,
-                resultList,
-                backButton
-        );
+        VBox layout = new VBox(12, title, levelBox, goalField, recommendButton, status, resultList, backButton);
         layout.setPadding(new Insets(25));
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-background-color: #FDFEFE;");
@@ -148,21 +158,11 @@ public class WorkoutRecommendationsScreen {
     private void styleInput(Control control) {
         control.setPrefHeight(40);
         control.setMaxWidth(300);
-        control.setStyle(
-                "-fx-background-color: #ECF0F1; " +
-                        "-fx-border-color: #BDC3C7; " +
-                        "-fx-border-radius: 5; " +
-                        "-fx-background-radius: 5;"
-        );
+        control.setStyle("-fx-background-color: #ECF0F1; -fx-border-color: #BDC3C7; -fx-border-radius: 5; -fx-background-radius: 5;");
     }
 
     private void styleButton(Button button, String color) {
-        button.setPrefSize(35, 160);
-        button.setStyle(
-                "-fx-background-color: " + color + "; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
-        );
+        button.setPrefSize(160, 35);
+        button.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
     }
 }
