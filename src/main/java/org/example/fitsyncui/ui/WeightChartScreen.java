@@ -43,19 +43,18 @@ public class WeightChartScreen {
 
         ObjectMapper mapper = new ObjectMapper();
         try {
-            URL url = new URL("http://localhost:8080/api/weights/user/" + user.getId());
+            URL url = new URL("http://localhost:8080/api/weights/" + user.getId());
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
             if (conn.getResponseCode() == 200) {
                 InputStream in = conn.getInputStream();
-                List<Map<String, Object>> list = mapper.readValue(in, new TypeReference<>() {
-                });
+                List<Map<String, Object>> list = mapper.readValue(in, new TypeReference<>() {});
                 list.sort((a, b) -> a.get("date").toString().compareTo(b.get("date").toString()));
                 for (Map<String, Object> m : list) {
                     String date = m.get("date").toString().substring(0, 10);
-                    double w = ((Number) m.get("weight")).doubleValue();
-                    series.getData().add(new XYChart.Data<>(date, w));
+                    double weight = ((Number) m.get("weight")).doubleValue();
+                    series.getData().add(new XYChart.Data<>(date, weight));
                 }
             }
             conn.disconnect();
