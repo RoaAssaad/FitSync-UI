@@ -59,6 +59,12 @@ public class LogWorkoutScreen {
         Button logButton = new Button("Log Workout");
         styleButton(logButton, "#2ECC71");
 
+        Button updateButton = new Button("Update Workout");
+        styleButton(updateButton, "#F39C12");
+
+        Button deleteButton = new Button("Delete Workout");
+        styleButton(deleteButton, "#E74C3C");
+
         Button backButton = new Button("Back");
         styleButton(backButton, "#3498DB");
 
@@ -90,7 +96,6 @@ public class LogWorkoutScreen {
             try {
                 int duration = Integer.parseInt(caloriesText);
 
-                // 1. Create or update workout
                 URL createUrl = new URL("http://localhost:8080/api/workouts");
                 HttpURLConnection createConn = (HttpURLConnection) createUrl.openConnection();
                 createConn.setRequestMethod("POST");
@@ -107,7 +112,6 @@ public class LogWorkoutScreen {
                     Map<String, Object> response = mapper.readValue(createConn.getInputStream(), new TypeReference<>() {});
                     int workoutId = (Integer) response.get("id");
 
-                    // 2. Log workout
                     URL logUrl = new URL("http://localhost:8080/api/workouts/log");
                     HttpURLConnection logConn = (HttpURLConnection) logUrl.openConnection();
                     logConn.setRequestMethod("POST");
@@ -138,6 +142,67 @@ public class LogWorkoutScreen {
             }
         });
 
+        updateButton.setOnAction(e -> {
+            String selected = workoutDropdown.getValue();
+            if (selected == null) {
+                messageLabel.setText("Select a workout to update.");
+                return;
+            }
+
+            try {
+                int id = workoutNameToId.get(selected);
+                String newName = workoutNameField.getText().trim();
+                int newCal = Integer.parseInt(caloriesField.getText().trim());
+
+                URL updateUrl = new URL("http://localhost:8080/api/workouts/update?id=" + id + "&name=" + newName + "&duration=" + newCal);
+                HttpURLConnection conn = (HttpURLConnection) updateUrl.openConnection();
+                conn.setRequestMethod("PUT");
+
+                if (conn.getResponseCode() == 200) {
+                    messageLabel.setTextFill(Color.web("#27AE60"));
+                    messageLabel.setText("Workout updated.");
+                    loadWorkouts(workoutDropdown);
+                    workoutDropdown.setValue(null);
+                    workoutNameField.clear();
+                    caloriesField.clear();
+                } else {
+                    messageLabel.setText("Failed to update workout.");
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                messageLabel.setText("Update failed.");
+            }
+        });
+
+        deleteButton.setOnAction(e -> {
+            String selected = workoutDropdown.getValue();
+            if (selected == null) {
+                messageLabel.setText("Select a workout to delete.");
+                return;
+            }
+
+            try {
+                int id = workoutNameToId.get(selected);
+                URL deleteUrl = new URL("http://localhost:8080/api/workouts/delete/" + id);
+                HttpURLConnection conn = (HttpURLConnection) deleteUrl.openConnection();
+                conn.setRequestMethod("DELETE");
+
+                if (conn.getResponseCode() == 204) {
+                    messageLabel.setTextFill(Color.web("#27AE60"));
+                    messageLabel.setText("Workout deleted.");
+                    loadWorkouts(workoutDropdown);
+                    workoutDropdown.setValue(null);
+                    workoutNameField.clear();
+                    caloriesField.clear();
+                } else {
+                    messageLabel.setText("Failed to delete workout.");
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                messageLabel.setText("Delete failed.");
+            }
+        });
+
         backButton.setOnAction(e -> {
             new DashboardScreen(user).start(stage);
             stage.setFullScreen(wasFullScreen);
@@ -145,7 +210,7 @@ public class LogWorkoutScreen {
 
         VBox layout = new VBox(12,
                 title, workoutDropdown, workoutNameField, caloriesField, datePicker,
-                logButton, backButton, messageLabel
+                logButton, updateButton, deleteButton, backButton, messageLabel
         );
         layout.setPadding(new Insets(25));
         layout.setAlignment(Pos.CENTER);
@@ -176,12 +241,11 @@ public class LogWorkoutScreen {
                     String name = w.get("name").toString();
                     int id = (Integer) w.get("id");
                     int duration = (Integer) w.get("duration");
-
                     if (!workoutNames.contains(name)) {
                         workoutNames.add(name);
-                        workoutNameToId.put(name, id);
-                        workoutCalories.put(name, duration);
                     }
+                    workoutNameToId.put(name, id);
+                    workoutCalories.put(name, duration);
                 }
             }
             conn.disconnect();
