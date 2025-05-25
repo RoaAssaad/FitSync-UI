@@ -53,8 +53,7 @@ public class DashboardScreen {
 
         menuBar.getMenus().addAll(fileMenu, aboutMenu);
 
-        Label greeting = new Label("Welcome, " + "!");
-
+        Label greeting = new Label("Welcome, " + user.getName() + "!");
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setPrefHeight(35);
