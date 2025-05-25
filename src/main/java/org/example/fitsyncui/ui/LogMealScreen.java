@@ -16,18 +16,18 @@ import javafx.stage.Stage;
 import org.example.fitsyncui.model.User;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class LogMealScreen {
     private final User user;
     private final ObservableList<String> mealNames = FXCollections.observableArrayList();
+    private final Map<String, Integer> mealIds = new HashMap<>();
     private final Map<String, Double> mealCalories = new HashMap<>();
     private final Map<String, String> mealTypes = new HashMap<>();
 
@@ -55,9 +55,7 @@ public class LogMealScreen {
         caloriesField.setPromptText("Calories");
         styleInput(caloriesField);
 
-        ComboBox<String> mealTypeBox = new ComboBox<>(
-                FXCollections.observableArrayList("Breakfast", "Lunch", "Dinner", "Snack")
-        );
+        ComboBox<String> mealTypeBox = new ComboBox<>(FXCollections.observableArrayList("Breakfast", "Lunch", "Dinner", "Snack"));
         mealTypeBox.setPromptText("Meal Type");
         styleInput(mealTypeBox);
 
@@ -102,39 +100,17 @@ public class LogMealScreen {
             }
             try {
                 double calories = Double.parseDouble(calText);
-
-                // Create or update the meal
-                String createUrl = String.format("http://localhost:8080/api/meals?foodName=%s&calories=%s&mealType=%s",
-                        URLEncoder.encode(name, StandardCharsets.UTF_8),
-                        URLEncoder.encode(String.valueOf(calories), StandardCharsets.UTF_8),
-                        URLEncoder.encode(type, StandardCharsets.UTF_8));
-                HttpURLConnection createConn = (HttpURLConnection) new URL(createUrl).openConnection();
-                createConn.setRequestMethod("POST");
-                createConn.setRequestProperty("Accept", "application/json");
-                InputStream createIn = createConn.getInputStream();
-                ObjectMapper mapper = new ObjectMapper();
-                Map<String, Object> mealData = mapper.readValue(createIn, new TypeReference<>() {});
-                int mealId = (int) mealData.get("id");
-                createConn.disconnect();
-
-                // Log the meal
-                String logUrl = String.format("http://localhost:8080/api/meals/log?userId=%d&mealId=%d&date=%s",
-                        user.getId(), mealId, date);
-                HttpURLConnection logConn = (HttpURLConnection) new URL(logUrl).openConnection();
-                logConn.setRequestMethod("POST");
-                logConn.getInputStream().close(); // trigger the request
-                logConn.disconnect();
+                int mealId = createMeal(name, calories, type); // Always create new
+                logMeal(mealId, date);
 
                 mealNames.add(name);
                 mealCalories.put(name, calories);
                 mealTypes.put(name, type);
+                mealDropdown.setItems(mealNames);
+
                 messageLabel.setTextFill(Color.web("#27AE60"));
                 messageLabel.setText("Meal logged successfully!");
-                mealDropdown.setItems(mealNames);
-                mealDropdown.setValue(null);
-                customMealField.clear();
-                caloriesField.clear();
-                mealTypeBox.setValue(null);
+                resetInputs(mealDropdown, customMealField, caloriesField, mealTypeBox);
             } catch (Exception ex) {
                 ex.printStackTrace();
                 messageLabel.setText("Error logging meal.");
@@ -152,24 +128,31 @@ public class LogMealScreen {
             }
             try {
                 double newCalories = Double.parseDouble(calText);
-                String updateUrl = String.format("http://localhost:8080/api/meals?foodName=%s&calories=%s&mealType=%s",
+                int id = mealIds.getOrDefault(selected, -1);
+                if (id == -1) {
+                    messageLabel.setText("Meal ID not found.");
+                    return;
+                }
+
+                String url = String.format("http://localhost:8080/api/meals/update?id=%d&foodName=%s&calories=%s&mealType=%s",
+                        id,
                         URLEncoder.encode(newName, StandardCharsets.UTF_8),
                         URLEncoder.encode(String.valueOf(newCalories), StandardCharsets.UTF_8),
                         URLEncoder.encode(type, StandardCharsets.UTF_8));
-                HttpURLConnection updateConn = (HttpURLConnection) new URL(updateUrl).openConnection();
-                updateConn.setRequestMethod("POST");
-                updateConn.getInputStream().close();
-                updateConn.disconnect();
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestMethod("PUT");
+                conn.getInputStream().close();
+                conn.disconnect();
 
                 mealNames.remove(selected);
                 mealNames.add(newName);
                 mealCalories.put(newName, newCalories);
                 mealTypes.put(newName, type);
+                mealDropdown.setItems(mealNames);
+                mealDropdown.setValue(null);
 
                 messageLabel.setTextFill(Color.web("#27AE60"));
                 messageLabel.setText("Meal updated.");
-                mealDropdown.setItems(mealNames);
-                mealDropdown.setValue(null);
             } catch (Exception ex) {
                 ex.printStackTrace();
                 messageLabel.setText("Update failed.");
@@ -183,8 +166,27 @@ public class LogMealScreen {
                 return;
             }
             try {
-                // You need an endpoint to get meal ID by name or use internal state
-                messageLabel.setText("Delete functionality requires meal ID or an endpoint for ID lookup.");
+                int id = mealIds.getOrDefault(selected, -1);
+                if (id == -1) {
+                    messageLabel.setText("Meal ID not found.");
+                    return;
+                }
+
+                String url = "http://localhost:8080/api/meals/delete/" + id;
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestMethod("DELETE");
+                conn.getInputStream().close();
+                conn.disconnect();
+
+                mealNames.remove(selected);
+                mealIds.remove(selected);
+                mealCalories.remove(selected);
+                mealTypes.remove(selected);
+                mealDropdown.setItems(mealNames);
+                mealDropdown.setValue(null);
+
+                messageLabel.setTextFill(Color.web("#27AE60"));
+                messageLabel.setText("Meal deleted.");
             } catch (Exception ex) {
                 ex.printStackTrace();
                 messageLabel.setText("Delete failed.");
@@ -238,6 +240,8 @@ public class LogMealScreen {
             List<Map<String, Object>> meals = mapper.readValue(in, new TypeReference<>() {});
             for (Map<String, Object> m : meals) {
                 String name = m.get("foodName").toString();
+                int id = (int) m.get("id");
+                mealIds.put(name, id);
                 mealNames.add(name);
                 mealCalories.put(name, ((Number) m.get("calories")).doubleValue());
                 mealTypes.put(name, m.get("mealType").toString());
@@ -246,5 +250,36 @@ public class LogMealScreen {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
+    }
+
+    private int createMeal(String name, double cal, String type) throws Exception {
+        String url = String.format("http://localhost:8080/api/meals/create?foodName=%s&calories=%s&mealType=%s",
+                URLEncoder.encode(name, StandardCharsets.UTF_8),
+                URLEncoder.encode(String.valueOf(cal), StandardCharsets.UTF_8),
+                URLEncoder.encode(type, StandardCharsets.UTF_8));
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Accept", "application/json");
+        InputStream in = conn.getInputStream();
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> meal = mapper.readValue(in, new TypeReference<>() {});
+        conn.disconnect();
+        return (int) meal.get("id");
+    }
+
+    private void logMeal(int mealId, LocalDate date) throws Exception {
+        String url = String.format("http://localhost:8080/api/meals/log?userId=%d&mealId=%d&date=%s",
+                user.getId(), mealId, date);
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setRequestMethod("POST");
+        conn.getInputStream().close();
+        conn.disconnect();
+    }
+
+    private void resetInputs(ComboBox<String> mealDropdown, TextField custom, TextField calories, ComboBox<String> type) {
+        mealDropdown.setValue(null);
+        custom.clear();
+        calories.clear();
+        type.setValue(null);
     }
 }
