@@ -1,6 +1,5 @@
 package org.example.fitsyncui.ui;
 
-import org.example.fitsyncui.model.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -12,6 +11,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+import org.example.fitsyncui.model.User;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -37,13 +37,9 @@ public class UserProfileScreen {
 
         TextField emailField = new TextField(user.getEmail());
         emailField.setDisable(true);
+        emailField.setStyle("-fx-background-color: #E0E0E0; -fx-border-radius: 5; -fx-background-radius: 5;");
         emailField.setPrefHeight(40);
         emailField.setMaxWidth(300);
-        emailField.setStyle(
-                "-fx-background-color: #E0E0E0; " +
-                        "-fx-border-radius: 5; " +
-                        "-fx-background-radius: 5;"
-        );
 
         PasswordField passwordField = new PasswordField();
         passwordField.setPromptText("New Password (leave blank to keep current)");
@@ -52,9 +48,7 @@ public class UserProfileScreen {
         TextField ageField = new TextField(String.valueOf(user.getAge()));
         styleField(ageField);
 
-        ComboBox<String> genderBox = new ComboBox<>(
-                FXCollections.observableArrayList("M", "F")
-        );
+        ComboBox<String> genderBox = new ComboBox<>(FXCollections.observableArrayList("M", "F"));
         genderBox.setValue(user.getGender());
         styleField(genderBox);
 
@@ -65,37 +59,18 @@ public class UserProfileScreen {
         styleField(heightField);
 
         Button saveButton = new Button("Save Changes");
-        saveButton.setPrefSize(200, 35);
-        saveButton.setStyle(
-                "-fx-background-color: #2ECC71; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
-        );
+        styleButton(saveButton, "#2ECC71");
 
         Button deleteButton = new Button("Delete Account");
-        deleteButton.setPrefSize(200, 35);
-        deleteButton.setStyle(
-                "-fx-background-color: #E74C3C; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
-        );
+        styleButton(deleteButton, "#E74C3C");
 
         Button backButton = new Button("Back");
-        backButton.setPrefSize(200, 35);
-        backButton.setStyle(
-                "-fx-background-color: #3498DB; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
-        );
+        styleButton(backButton, "#3498DB");
 
         Label messageLabel = new Label();
         messageLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 14));
         messageLabel.setTextFill(Color.web("#E74C3C"));
 
-        // UPDATE (PUT /api/users/{id})
         saveButton.setOnAction(e -> {
             try {
                 String name = nameField.getText().trim();
@@ -105,11 +80,8 @@ public class UserProfileScreen {
                 double weight = Double.parseDouble(weightField.getText().trim());
                 double height = Double.parseDouble(heightField.getText().trim());
 
-                if (name.isEmpty() || gender == null) {
-                    throw new IllegalArgumentException();
-                }
+                if (name.isEmpty() || gender == null) throw new IllegalArgumentException();
 
-                // build updated user
                 User updated = new User(
                         user.getId(),
                         name,
@@ -121,7 +93,6 @@ public class UserProfileScreen {
                         height
                 );
 
-                // send PUT
                 URL url = new URL("http://localhost:8080/api/users/" + user.getId());
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("PUT");
@@ -142,6 +113,7 @@ public class UserProfileScreen {
                 } else {
                     messageLabel.setText("Update failed. (" + code + ")");
                 }
+
                 conn.disconnect();
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -149,7 +121,6 @@ public class UserProfileScreen {
             }
         });
 
-        // DELETE (DELETE /api/users/{id})
         deleteButton.setOnAction(e -> {
             try {
                 URL url = new URL("http://localhost:8080/api/users/" + user.getId());
@@ -160,7 +131,6 @@ public class UserProfileScreen {
                 conn.disconnect();
 
                 if (code == 200 || code == 204) {
-                    // back to login screen
                     new LoginScreen().start(stage);
                     stage.setFullScreen(false);
                 } else {
@@ -211,11 +181,11 @@ public class UserProfileScreen {
     private void styleField(Control c) {
         c.setPrefHeight(40);
         c.setMaxWidth(300);
-        c.setStyle(
-                "-fx-background-color: #ECF0F1; " +
-                        "-fx-border-color: #BDC3C7; " +
-                        "-fx-border-radius: 5; " +
-                        "-fx-background-radius: 5;"
-        );
+        c.setStyle("-fx-background-color: #ECF0F1; -fx-border-color: #BDC3C7; -fx-border-radius: 5; -fx-background-radius: 5;");
+    }
+
+    private void styleButton(Button button, String color) {
+        button.setPrefSize(200, 35);
+        button.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;");
     }
 }
