@@ -58,19 +58,13 @@ public class RegisterScreen {
         Button registerButton = new Button("Register");
         registerButton.setPrefSize(140, 35);
         registerButton.setStyle(
-                "-fx-background-color: #2ECC71; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
+                "-fx-background-color: #2ECC71; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;"
         );
 
         Button backButton = new Button("Back to Login");
         backButton.setPrefSize(140, 35);
         backButton.setStyle(
-                "-fx-background-color: #3498DB; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8;"
+                "-fx-background-color: #3498DB; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8;"
         );
 
         Label messageLabel = new Label();
@@ -78,45 +72,49 @@ public class RegisterScreen {
         messageLabel.setTextFill(Color.web("#E74C3C"));
 
         registerButton.setOnAction(e -> {
-            String name = nameField.getText().trim();
-            String email = emailField.getText().trim();
-            String password = passwordField.getText().trim();
-            String ageText = ageField.getText().trim();
-            String gender = genderBox.getValue();
-            String weightText = weightField.getText().trim();
-            String heightText = heightField.getText().trim();
             try {
-                if (name.isEmpty() || email.isEmpty() || password.isEmpty() ||
-                        ageText.isEmpty() || gender == null ||
-                        weightText.isEmpty() || heightText.isEmpty()) {
-                    throw new IllegalArgumentException();
+                String name = nameField.getText().trim();
+                String email = emailField.getText().trim();
+                String password = passwordField.getText().trim();
+                int age = Integer.parseInt(ageField.getText().trim());
+                String gender = genderBox.getValue();
+                double weight = Double.parseDouble(weightField.getText().trim());
+                double height = Double.parseDouble(heightField.getText().trim());
+
+                if (name.isEmpty() || email.isEmpty() || password.isEmpty() || gender == null) {
+                    messageLabel.setText("Please fill in all fields.");
+                    return;
                 }
-                int age = Integer.parseInt(ageText);
-                double weight = Double.parseDouble(weightText);
-                double height = Double.parseDouble(heightText);
-                User newUser = new User(name, email, password, age, gender, weight, height);
+
+                User user = new User(name, email, password, age, gender, weight, height);
+
                 URL url = new URL("http://localhost:8080/api/users");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
                 conn.setRequestProperty("Content-Type", "application/json");
+
                 ObjectMapper mapper = new ObjectMapper();
-                String json = mapper.writeValueAsString(newUser);
+                String json = mapper.writeValueAsString(user);
+
                 try (OutputStream os = conn.getOutputStream()) {
                     os.write(json.getBytes(StandardCharsets.UTF_8));
                 }
+
                 int code = conn.getResponseCode();
                 if (code == 200 || code == 201) {
                     messageLabel.setText("Registration successful! You can now log in.");
                     messageLabel.setTextFill(Color.web("#27AE60"));
                 } else {
-                    messageLabel.setText("Registration failed (" + code + ").");
+                    messageLabel.setText("Registration failed (status " + code + ").");
                     messageLabel.setTextFill(Color.web("#E74C3C"));
                 }
+
                 conn.disconnect();
+
             } catch (Exception ex) {
                 ex.printStackTrace();
-                messageLabel.setText("Please enter valid values.");
+                messageLabel.setText("Invalid input. Please check your values.");
                 messageLabel.setTextFill(Color.web("#E74C3C"));
             }
         });
@@ -126,37 +124,25 @@ public class RegisterScreen {
             stage.setFullScreen(wasFullScreen);
         });
 
-        VBox form = new VBox(12,
-                title,
-                nameField, emailField, passwordField,
+        VBox layout = new VBox(12,
+                title, nameField, emailField, passwordField,
                 ageField, genderBox, weightField, heightField,
-                registerButton, backButton, messageLabel
-        );
-        form.setAlignment(Pos.CENTER);
-        form.setPadding(new Insets(25));
-        form.setMaxWidth(350);
+                registerButton, backButton, messageLabel);
+        layout.setPadding(new Insets(25));
+        layout.setAlignment(Pos.CENTER);
+        layout.setStyle("-fx-background-color: #FDFEFE;");
+        layout.prefWidthProperty().bind(stage.widthProperty());
+        layout.prefHeightProperty().bind(stage.heightProperty());
 
-        VBox root = new VBox(form);
-        root.setAlignment(Pos.CENTER);
-        root.setStyle("-fx-background-color: #FDFEFE;");
-        root.prefWidthProperty().bind(stage.widthProperty());
-        root.prefHeightProperty().bind(stage.heightProperty());
-
-        Scene scene = new Scene(root, 800, 600);
-        stage.setTitle("FitSync - Register");
+        Scene scene = new Scene(layout);
         stage.setScene(scene);
         stage.setFullScreen(wasFullScreen);
         stage.show();
     }
 
-    private void styleField(Control c) {
-        c.setPrefHeight(40);
-        c.setMaxWidth(300);
-        c.setStyle(
-                "-fx-background-color: #ECF0F1; " +
-                        "-fx-border-color: #BDC3C7; " +
-                        "-fx-border-radius: 5; " +
-                        "-fx-background-radius: 5;"
-        );
+    private void styleField(Control field) {
+        field.setPrefHeight(40);
+        field.setMaxWidth(300);
+        field.setStyle("-fx-background-color: #ECF0F1; -fx-border-color: #BDC3C7; -fx-border-radius: 5; -fx-background-radius: 5;");
     }
 }
