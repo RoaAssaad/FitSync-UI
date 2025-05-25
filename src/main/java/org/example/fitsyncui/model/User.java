@@ -10,10 +10,10 @@ public class User {
     public double weight;
     public double height;
 
-    // Default constructor for Jackson
+
     public User() {}
 
-    // Constructor without ID (for new users)
+
     public User(String name, String email, String password, int age, String gender, double weight, double height) {
         this.name = name;
         this.email = email;
@@ -24,13 +24,13 @@ public class User {
         this.height = height;
     }
 
-    // Constructor with ID (for retrieving from DB)
+
     public User(int id, String name, String email, String password, int age, String gender, double weight, double height) {
         this(name, email, password, age, gender, weight, height);
         this.id = id;
     }
 
-    // Getters & Setters
+    
     public int getId() {
         return id;
     }
