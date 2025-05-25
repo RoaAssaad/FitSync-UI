@@ -53,7 +53,17 @@ public class DashboardScreen {
 
         menuBar.getMenus().addAll(fileMenu, aboutMenu);
 
-        Label greeting = new Label("Welcome, " + user.getName() + "!");
+        Label greeting = new Label();
+        greeting.setText("Welcome, ");
+        greeting.setFont(Font.font("Arial", FontWeight.BOLD, 22));
+
+
+        Label nameLabel = new Label(user.getName() + "!");
+        nameLabel.setFont(Font.font("Arial", FontWeight.EXTRA_BOLD, 22));
+
+
+        HBox greetingBox = new HBox(greeting, nameLabel);
+        greetingBox.setAlignment(Pos.CENTER);
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setPrefHeight(35);
@@ -132,7 +142,8 @@ public class DashboardScreen {
         tabPane.getSelectionModel().select(mealsTab);
         centerButtons.getChildren().setAll(mealsBox);
 
-        VBox header = new VBox(10, greeting, tabPane);
+        VBox header = new VBox(10, greetingBox, tabPane);
+
         header.setAlignment(Pos.CENTER);
         header.setPadding(new Insets(20, 0, 10, 0));
 
